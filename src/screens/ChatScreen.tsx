@@ -6,9 +6,8 @@ import {
   StatusBar,
   Alert,
   TouchableOpacity,
-  Platform,
-  KeyboardAvoidingView,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { GiftedChat, IMessage, Bubble, InputToolbar, Composer, Send } from 'react-native-gifted-chat';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -203,10 +202,7 @@ export default function ChatScreen({ navigation, route }: Props) {
   const renderInputToolbar = (props: any) => (
     <InputToolbar
       {...props}
-      containerStyle={[
-        styles.inputToolbar,
-        { paddingBottom: Math.max(insets.bottom, 8) },
-      ]}
+      containerStyle={styles.inputToolbar}
       primaryStyle={styles.inputPrimary}
     />
   );
@@ -239,10 +235,11 @@ export default function ChatScreen({ navigation, route }: Props) {
     </View>
   );
 
-  const HEADER_HEIGHT = 64;
-
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <KeyboardAvoidingView
+      style={[styles.container, { paddingTop: insets.top }]}
+      behavior="padding"
+    >
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
 
       <View style={styles.header}>
@@ -270,11 +267,7 @@ export default function ChatScreen({ navigation, route }: Props) {
         </View>
       )}
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={insets.top + HEADER_HEIGHT + (sending ? 30 : 0)}
-      >
+      <View style={styles.flex}>
         <GiftedChat
           {...{
             messages,
@@ -296,17 +289,17 @@ export default function ChatScreen({ navigation, route }: Props) {
               right: { color: Colors.textMuted, ...Typography.small },
               left: { color: Colors.textMuted, ...Typography.small },
             },
-            bottomOffset: 0,
-            minInputToolbarHeight: 56,
+            bottomOffset: insets.bottom,
+            minInputToolbarHeight: 56 + insets.bottom,
             keyboardShouldPersistTaps: 'handled',
             listViewProps: {
               style: { backgroundColor: Colors.background },
-              keyboardDismissMode: 'interactive',
+              keyboardDismissMode: 'on-drag',
             },
           } as any}
         />
-      </KeyboardAvoidingView>
-    </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -378,6 +371,7 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.border,
     paddingHorizontal: 6,
     paddingTop: 8,
+    paddingBottom: 8,
   },
   inputPrimary: {
     alignItems: 'center',
