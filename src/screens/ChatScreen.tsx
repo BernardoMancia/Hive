@@ -6,6 +6,8 @@ import {
   StatusBar,
   Alert,
   TouchableOpacity,
+  Keyboard,
+  Platform,
 } from 'react-native';
 import { GiftedChat, IMessage, Bubble, InputToolbar, Composer, Send } from 'react-native-gifted-chat';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -58,7 +60,7 @@ export default function ChatScreen({ navigation, route }: Props) {
 
     setCurrentRoom(room.id);
 
-    subscribeToPresence((_count, roomCounts) => {
+    subscribeToPresence((_count, roomCounts, _peers) => {
       setPeerCount(roomCounts[room.id] || 0);
     });
 
@@ -67,8 +69,7 @@ export default function ChatScreen({ navigation, route }: Props) {
       seenIds.current.add(msg._id);
 
       setMessages((prev) => {
-        const exists = prev.some((m) => m._id === msg._id);
-        if (exists) return prev;
+        if (prev.some((m) => m._id === msg._id)) return prev;
 
         const newMsg: IMessage = {
           _id: msg._id,
@@ -104,6 +105,7 @@ export default function ChatScreen({ navigation, route }: Props) {
 
   const handlePickImage = async () => {
     try {
+      Keyboard.dismiss();
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
         Alert.alert('Permission required', 'Please allow access to your gallery.');
@@ -130,6 +132,7 @@ export default function ChatScreen({ navigation, route }: Props) {
 
   const handleCamera = async () => {
     try {
+      Keyboard.dismiss();
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
         Alert.alert('Permission required', 'Please allow access to your camera.');
@@ -253,18 +256,20 @@ export default function ChatScreen({ navigation, route }: Props) {
           scrollToBottomStyle: styles.scrollToBottom,
           showUserAvatar: false,
           alwaysShowSend: true,
-          showAvatarForEveryMessage: false,
           renderUsernameOnMessage: true,
+          showAvatarForEveryMessage: false,
           timeTextStyle: {
             right: { color: Colors.textMuted, ...Typography.small },
             left: { color: Colors.textMuted, ...Typography.small },
           },
-          bottomOffset: insets.bottom,
+          bottomOffset: Platform.OS === 'ios' ? insets.bottom : 0,
           minInputToolbarHeight: 60,
           keyboardShouldPersistTaps: 'handled',
           listViewProps: {
             style: { backgroundColor: Colors.background },
+            keyboardDismissMode: 'interactive',
           },
+          isKeyboardInternallyHandled: Platform.OS === 'android',
         } as any}
       />
     </View>

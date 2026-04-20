@@ -48,7 +48,7 @@ export default function HomeScreen({ navigation }: Props) {
     setCurrentRoom('lobby');
     loadName();
 
-    subscribeToPresence((count, counts) => {
+    subscribeToPresence((count, counts, _peers) => {
       setOnlineCount(count);
       setRoomCounts(counts);
     });

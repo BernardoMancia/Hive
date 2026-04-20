@@ -21,7 +21,6 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0A0F"
       },
-      "edgeToEdgeEnabled": true,
       "package": "com.hive.chat",
       "permissions": [
         "android.permission.CAMERA",
