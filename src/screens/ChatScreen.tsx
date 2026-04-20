@@ -6,6 +6,8 @@ import {
   StatusBar,
   Alert,
   TouchableOpacity,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { GiftedChat, IMessage, Bubble, InputToolbar, Composer, Send } from 'react-native-gifted-chat';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -17,7 +19,13 @@ import { Typography } from '../theme/typography';
 import { RootStackParamList } from '../types';
 import { subscribeToMessages, unsubscribeFromMessages, sendMessage } from '../services/gun';
 import { sendMediaMessage } from '../services/media';
-import { getUserId, getUserName, setCurrentRoom, subscribeToPresence, unsubscribeFromPresence } from '../services/presence';
+import {
+  getUserId,
+  getUserName,
+  setCurrentRoom,
+  subscribeToPresence,
+  unsubscribeFromPresence,
+} from '../services/presence';
 import PeerStatus from '../components/PeerStatus';
 
 type Props = {
@@ -28,12 +36,14 @@ type Props = {
 export default function ChatScreen({ navigation, route }: Props) {
   const { room } = route.params;
   const [messages, setMessages] = useState<IMessage[]>([]);
-  const [userId, setUserId] = useState('');
-  const [userName, setUserNameState] = useState('');
   const [peerCount, setPeerCount] = useState(0);
   const [sending, setSending] = useState(false);
   const seenIds = useRef(new Set<string>());
   const insets = useSafeAreaInsets();
+
+  const userIdRef = useRef('');
+  const userNameRef = useRef('Anonymous');
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     initChat();
@@ -47,9 +57,10 @@ export default function ChatScreen({ navigation, route }: Props) {
   const initChat = async () => {
     const id = await getUserId();
     const name = await getUserName();
-    setUserId(id);
-    setUserNameState(name || 'Anonymous');
-    
+    userIdRef.current = id;
+    userNameRef.current = name || 'Anonymous';
+    setReady(true);
+
     setCurrentRoom(room.id);
 
     subscribeToPresence((_count, roomCounts) => {
@@ -59,11 +70,11 @@ export default function ChatScreen({ navigation, route }: Props) {
     subscribeToMessages(room.id, (msg: any) => {
       if (seenIds.current.has(msg._id)) return;
       seenIds.current.add(msg._id);
-      
+
       setMessages((prev) => {
         const exists = prev.some((m) => m._id === msg._id);
         if (exists) return prev;
-        
+
         const newMsg: IMessage = {
           _id: msg._id,
           text: msg.text || '',
@@ -75,30 +86,27 @@ export default function ChatScreen({ navigation, route }: Props) {
           image: msg.image,
           video: msg.video,
         };
-        
-        const updated = [...prev, newMsg];
-        updated.sort((a, b) => {
-          const timeA = new Date(a.createdAt).getTime();
-          const timeB = new Date(b.createdAt).getTime();
-          return timeB - timeA;
-        });
+
+        const updated = [newMsg, ...prev];
         return updated;
       });
     });
   };
 
   const onSend = useCallback((newMessages: IMessage[] = []) => {
-    if (!userId || !userName) return;
-    
+    const uid = userIdRef.current;
+    const uname = userNameRef.current;
+    if (!uid) return;
+
     newMessages.forEach((msg) => {
       sendMessage(room.id, {
         _id: msg._id as string,
         text: msg.text,
         createdAt: new Date(msg.createdAt).getTime(),
-        user: { _id: userId, name: userName },
+        user: { _id: uid, name: uname },
       });
     });
-  }, [userId, userName, room.id]);
+  }, [room.id]);
 
   const handlePickImage = async () => {
     try {
@@ -124,7 +132,7 @@ export default function ChatScreen({ navigation, route }: Props) {
         room.id,
         asset.uri,
         type as 'image' | 'video',
-        { _id: userId, name: userName }
+        { _id: userIdRef.current, name: userNameRef.current }
       );
       setSending(false);
     } catch (error: any) {
@@ -153,7 +161,7 @@ export default function ChatScreen({ navigation, route }: Props) {
         room.id,
         result.assets[0].uri,
         'image',
-        { _id: userId, name: userName }
+        { _id: userIdRef.current, name: userNameRef.current }
       );
       setSending(false);
     } catch (error: any) {
@@ -231,10 +239,12 @@ export default function ChatScreen({ navigation, route }: Props) {
     </View>
   );
 
+  const HEADER_HEIGHT = 64;
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-      
+
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -242,7 +252,7 @@ export default function ChatScreen({ navigation, route }: Props) {
         >
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
-        
+
         <View style={styles.headerInfo}>
           <Text style={styles.roomIcon}>{room.icon}</Text>
           <View style={styles.headerTexts}>
@@ -250,7 +260,7 @@ export default function ChatScreen({ navigation, route }: Props) {
             <Text style={styles.roomDesc} numberOfLines={1}>{room.description}</Text>
           </View>
         </View>
-        
+
         <PeerStatus peerCount={peerCount} />
       </View>
 
@@ -260,33 +270,42 @@ export default function ChatScreen({ navigation, route }: Props) {
         </View>
       )}
 
-      <GiftedChat
-        {...{
-          messages,
-          onSend: (msgs: IMessage[]) => onSend(msgs),
-          user: {
-            _id: userId,
-            name: userName,
-          },
-          renderBubble,
-          renderInputToolbar,
-          renderComposer,
-          renderSend,
-          renderActions,
-          scrollToBottom: true,
-          scrollToBottomStyle: styles.scrollToBottom,
-          timeTextStyle: {
-            right: { color: Colors.textMuted, ...Typography.small },
-            left: { color: Colors.textMuted, ...Typography.small },
-          },
-          bottomOffset: 0,
-          minInputToolbarHeight: 56,
-          keyboardShouldPersistTaps: 'handled',
-          listViewProps: {
-            style: { backgroundColor: Colors.background },
-          },
-        } as any}
-      />
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={insets.top + HEADER_HEIGHT + (sending ? 30 : 0)}
+      >
+        <GiftedChat
+          {...{
+            messages,
+            onSend: (msgs: IMessage[]) => onSend(msgs),
+            user: {
+              _id: userIdRef.current || 'me',
+              name: userNameRef.current,
+            },
+            renderBubble,
+            renderInputToolbar,
+            renderComposer,
+            renderSend,
+            renderActions,
+            scrollToBottom: true,
+            scrollToBottomStyle: styles.scrollToBottom,
+            showUserAvatar: false,
+            alwaysShowSend: true,
+            timeTextStyle: {
+              right: { color: Colors.textMuted, ...Typography.small },
+              left: { color: Colors.textMuted, ...Typography.small },
+            },
+            bottomOffset: 0,
+            minInputToolbarHeight: 56,
+            keyboardShouldPersistTaps: 'handled',
+            listViewProps: {
+              style: { backgroundColor: Colors.background },
+              keyboardDismissMode: 'interactive',
+            },
+          } as any}
+        />
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -296,6 +315,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  flex: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -304,6 +326,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     gap: 8,
+    height: 64,
   },
   backButton: {
     width: 40,
