@@ -29,7 +29,7 @@ function sendHeartbeat() {
 
   try {
     const gun = getGun();
-    const presence = gun.get('hive').get('presence');
+    const presence = gun.get('hive_v1').get('presence');
 
     presence.get(localUserId).put({
       id: localUserId,
@@ -61,7 +61,7 @@ export function stopPresence() {
   if (localUserId) {
     try {
       const gun = getGun();
-      const presence = gun.get('hive').get('presence');
+    const presence = gun.get('hive_v1').get('presence');
       presence.get(localUserId).put({
         id: localUserId,
         name: localUserName,
@@ -79,7 +79,7 @@ export function subscribeToPresence(
 ) {
   try {
     const gun = getGun();
-    const presence = gun.get('hive').get('presence');
+    const presence = gun.get('hive_v1').get('presence');
     const peers: Record<string, any> = {};
 
     presence.map().on((data: any, key: string) => {
@@ -115,7 +115,7 @@ export function subscribeToPresence(
 export function unsubscribeFromPresence() {
   try {
     const gun = getGun();
-    const presence = gun.get('hive').get('presence');
+    const presence = gun.get('hive_v1').get('presence');
     presence.map().off();
   } catch (e) {
     console.warn('[Hive] Unsubscribe presence failed:', e);

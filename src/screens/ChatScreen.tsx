@@ -7,7 +7,6 @@ import {
   Alert,
   TouchableOpacity,
 } from 'react-native';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { GiftedChat, IMessage, Bubble, InputToolbar, Composer, Send } from 'react-native-gifted-chat';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -39,10 +38,8 @@ export default function ChatScreen({ navigation, route }: Props) {
   const [sending, setSending] = useState(false);
   const seenIds = useRef(new Set<string>());
   const insets = useSafeAreaInsets();
-
   const userIdRef = useRef('');
   const userNameRef = useRef('Anonymous');
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     initChat();
@@ -58,7 +55,6 @@ export default function ChatScreen({ navigation, route }: Props) {
     const name = await getUserName();
     userIdRef.current = id;
     userNameRef.current = name || 'Anonymous';
-    setReady(true);
 
     setCurrentRoom(room.id);
 
@@ -86,8 +82,7 @@ export default function ChatScreen({ navigation, route }: Props) {
           video: msg.video,
         };
 
-        const updated = [newMsg, ...prev];
-        return updated;
+        return [newMsg, ...prev];
       });
     });
   };
@@ -114,25 +109,18 @@ export default function ChatScreen({ navigation, route }: Props) {
         Alert.alert('Permission required', 'Please allow access to your gallery.');
         return;
       }
-
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images', 'videos'],
-        quality: 0.6,
+        quality: 0.5,
         allowsEditing: false,
       });
-
       if (result.canceled || !result.assets[0]) return;
-
       const asset = result.assets[0];
-      const type = asset.type === 'video' ? 'video' : 'image';
-
       setSending(true);
-      await sendMediaMessage(
-        room.id,
-        asset.uri,
-        type as 'image' | 'video',
-        { _id: userIdRef.current, name: userNameRef.current }
-      );
+      await sendMediaMessage(room.id, asset.uri, asset.type === 'video' ? 'video' : 'image', {
+        _id: userIdRef.current,
+        name: userNameRef.current,
+      });
       setSending(false);
     } catch (error: any) {
       setSending(false);
@@ -147,21 +135,13 @@ export default function ChatScreen({ navigation, route }: Props) {
         Alert.alert('Permission required', 'Please allow access to your camera.');
         return;
       }
-
-      const result = await ImagePicker.launchCameraAsync({
-        quality: 0.6,
-        allowsEditing: false,
-      });
-
+      const result = await ImagePicker.launchCameraAsync({ quality: 0.5 });
       if (result.canceled || !result.assets[0]) return;
-
       setSending(true);
-      await sendMediaMessage(
-        room.id,
-        result.assets[0].uri,
-        'image',
-        { _id: userIdRef.current, name: userNameRef.current }
-      );
+      await sendMediaMessage(room.id, result.assets[0].uri, 'image', {
+        _id: userIdRef.current,
+        name: userNameRef.current,
+      });
       setSending(false);
     } catch (error: any) {
       setSending(false);
@@ -192,10 +172,7 @@ export default function ChatScreen({ navigation, route }: Props) {
         right: { color: Colors.text, ...Typography.body },
         left: { color: Colors.text, ...Typography.body },
       }}
-      usernameStyle={{
-        ...Typography.captionBold,
-        color: Colors.primary,
-      }}
+      usernameStyle={{ ...Typography.captionBold, color: Colors.primary }}
     />
   );
 
@@ -236,20 +213,13 @@ export default function ChatScreen({ navigation, route }: Props) {
   );
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { paddingTop: insets.top }]}
-      behavior="padding"
-    >
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
 
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
-
         <View style={styles.headerInfo}>
           <Text style={styles.roomIcon}>{room.icon}</Text>
           <View style={styles.headerTexts}>
@@ -257,7 +227,6 @@ export default function ChatScreen({ navigation, route }: Props) {
             <Text style={styles.roomDesc} numberOfLines={1}>{room.description}</Text>
           </View>
         </View>
-
         <PeerStatus peerCount={peerCount} />
       </View>
 
@@ -267,39 +236,38 @@ export default function ChatScreen({ navigation, route }: Props) {
         </View>
       )}
 
-      <View style={styles.flex}>
-        <GiftedChat
-          {...{
-            messages,
-            onSend: (msgs: IMessage[]) => onSend(msgs),
-            user: {
-              _id: userIdRef.current || 'me',
-              name: userNameRef.current,
-            },
-            renderBubble,
-            renderInputToolbar,
-            renderComposer,
-            renderSend,
-            renderActions,
-            scrollToBottom: true,
-            scrollToBottomStyle: styles.scrollToBottom,
-            showUserAvatar: false,
-            alwaysShowSend: true,
-            timeTextStyle: {
-              right: { color: Colors.textMuted, ...Typography.small },
-              left: { color: Colors.textMuted, ...Typography.small },
-            },
-            bottomOffset: insets.bottom,
-            minInputToolbarHeight: 56 + insets.bottom,
-            keyboardShouldPersistTaps: 'handled',
-            listViewProps: {
-              style: { backgroundColor: Colors.background },
-              keyboardDismissMode: 'on-drag',
-            },
-          } as any}
-        />
-      </View>
-    </KeyboardAvoidingView>
+      <GiftedChat
+        {...{
+          messages,
+          onSend: (msgs: IMessage[]) => onSend(msgs),
+          user: {
+            _id: userIdRef.current || 'me',
+            name: userNameRef.current,
+          },
+          renderBubble,
+          renderInputToolbar,
+          renderComposer,
+          renderSend,
+          renderActions,
+          scrollToBottom: true,
+          scrollToBottomStyle: styles.scrollToBottom,
+          showUserAvatar: false,
+          alwaysShowSend: true,
+          showAvatarForEveryMessage: false,
+          renderUsernameOnMessage: true,
+          timeTextStyle: {
+            right: { color: Colors.textMuted, ...Typography.small },
+            left: { color: Colors.textMuted, ...Typography.small },
+          },
+          bottomOffset: insets.bottom,
+          minInputToolbarHeight: 60,
+          keyboardShouldPersistTaps: 'handled',
+          listViewProps: {
+            style: { backgroundColor: Colors.background },
+          },
+        } as any}
+      />
+    </View>
   );
 }
 
@@ -308,18 +276,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  flex: {
-    flex: 1,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     gap: 8,
-    height: 64,
   },
   backButton: {
     width: 40,
@@ -345,7 +309,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   roomIcon: {
-    fontSize: 28,
+    fontSize: 26,
   },
   roomName: {
     ...Typography.bodyBold,
@@ -357,7 +321,7 @@ const styles = StyleSheet.create({
   },
   sendingBar: {
     backgroundColor: Colors.primaryGlow,
-    paddingVertical: 6,
+    paddingVertical: 5,
     paddingHorizontal: 16,
     alignItems: 'center',
   },
@@ -370,8 +334,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     paddingHorizontal: 6,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingTop: 6,
+    paddingBottom: 6,
   },
   inputPrimary: {
     alignItems: 'center',
@@ -380,14 +344,14 @@ const styles = StyleSheet.create({
   composer: {
     color: Colors.text,
     backgroundColor: Colors.surfaceElevated,
-    borderRadius: 22,
-    paddingHorizontal: 16,
+    borderRadius: 20,
+    paddingHorizontal: 14,
     paddingTop: 10,
     paddingBottom: 10,
     marginLeft: 4,
     marginRight: 6,
-    minHeight: 44,
-    maxHeight: 100,
+    minHeight: 42,
+    maxHeight: 120,
     fontSize: 15,
     lineHeight: 20,
     borderWidth: 1,
