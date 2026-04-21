@@ -30,8 +30,7 @@ export async function sendMediaMessage(
     const sizeKB = Math.round(fileSize / 1024);
     const limitKB = Math.round(MAX_IMAGE_SIZE_BYTES / 1024);
     throw new Error(
-      `Image too large (${sizeKB}KB). Limit is ${limitKB}KB.\n` +
-        'Please pick a smaller image or reduce quality.'
+      `Image too large (${sizeKB}KB). Limit is ${limitKB}KB. Please pick a smaller image.`
     );
   }
 
@@ -40,9 +39,7 @@ export async function sendMediaMessage(
   });
 
   const dataUri = `data:image/jpeg;base64,${base64}`;
-  const messageId = `msg_${Date.now()}_${Math.random()
-    .toString(36)
-    .substring(2, 9)}`;
+  const messageId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
   const messageData = {
     _id: messageId,
@@ -54,9 +51,7 @@ export async function sendMediaMessage(
 
   const sent = sendMessage(roomId, messageData);
   if (!sent) {
-    throw new Error(
-      'Failed to send through P2P network. Check your connection.'
-    );
+    throw new Error('Failed to send through P2P network. Check your connection.');
   }
 
   return messageData;
