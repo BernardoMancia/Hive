@@ -123,8 +123,7 @@ export function subscribeToPresence(
     presenceNode.map().on((data: any, key: string) => {
       if (!data || !data.id) return;
 
-      const isOnline =
-        data.lastSeen && Date.now() - data.lastSeen < STALE_THRESHOLD_MS;
+      const isOnline = data.lastSeen && Date.now() - data.lastSeen < STALE_THRESHOLD_MS;
 
       if (isOnline) {
         peersMap[key] = data;
@@ -165,14 +164,12 @@ export async function getUserId(): Promise<string> {
   try {
     let userId = await AsyncStorage.getItem('@hive_user_id');
     if (!userId) {
-      userId =
-        'peer_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+      userId = 'peer_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
       await AsyncStorage.setItem('@hive_user_id', userId);
     }
     return userId;
   } catch (e) {
-    const fallback =
-      'peer_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+    const fallback = 'peer_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
     try {
       await AsyncStorage.setItem('@hive_user_id', fallback);
     } catch (_) {}

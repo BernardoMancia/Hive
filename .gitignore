@@ -1,7 +1,7 @@
 node_modules/
 .expo/
 dist/
-build/
+web-build/
 android/
 ios/
 *.jks
@@ -10,12 +10,9 @@ ios/
 *.key
 *.mobileprovision
 *.orig.*
-web-build/
+.gradle/
+local.properties
 .env
 *.log
 *.apk
 *.aab
-.gradle/
-local.properties
-.apk
-*.apk

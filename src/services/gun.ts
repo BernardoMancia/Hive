@@ -84,7 +84,7 @@ export function getGun(): any {
       }
     });
   } catch (e) {
-    console.warn('[Hive] Gun init failed, using fallback:', e);
+    console.warn('[Hive] Gun init failed:', e);
     try {
       gunInstance = Gun({ peers: COMMUNITY_RELAYS });
     } catch (e2) {
