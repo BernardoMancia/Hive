@@ -34,6 +34,18 @@ export interface PresenceData {
   [peerId: string]: PeerInfo;
 }
 
+export interface GunMessageData {
+  _id: string;
+  text: string;
+  createdAt: number;
+  userId: string;
+  userName: string;
+  image?: string;
+  video?: string;
+}
+
+export type ConnectionStatus = 'connected' | 'disconnected' | 'reconnecting';
+
 export type RootStackParamList = {
   Welcome: undefined;
   Home: undefined;

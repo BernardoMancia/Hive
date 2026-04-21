@@ -5,9 +5,10 @@ import { Typography } from '../theme/typography';
 
 interface OnlineCounterProps {
   count: number;
+  isConnected?: boolean;
 }
 
-export default function OnlineCounter({ count }: OnlineCounterProps) {
+export default function OnlineCounter({ count, isConnected = true }: OnlineCounterProps) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0.3)).current;
   const prevCount = useRef(count);
@@ -63,6 +64,13 @@ export default function OnlineCounter({ count }: OnlineCounterProps) {
     return () => breathe.stop();
   }, []);
 
+  const dotColor = isConnected ? Colors.online : Colors.offline;
+  const labelText = !isConnected
+    ? 'offline'
+    : count === 1
+      ? 'peer online'
+      : 'peers online';
+
   return (
     <View style={styles.container}>
       <Animated.View
@@ -75,18 +83,19 @@ export default function OnlineCounter({ count }: OnlineCounterProps) {
         ]}
       />
       <View style={styles.dotContainer}>
-        <View style={styles.dot} />
+        <View style={[styles.dot, { backgroundColor: dotColor, shadowColor: dotColor }]} />
       </View>
       <Animated.Text
         style={[
           styles.count,
           { transform: [{ scale: pulseAnim }] },
+          !isConnected && { color: Colors.offline },
         ]}
       >
-        {count}
+        {isConnected ? count : '—'}
       </Animated.Text>
-      <Text style={styles.label}>
-        {count === 1 ? 'peer online' : 'peers online'}
+      <Text style={[styles.label, !isConnected && { color: Colors.offline }]}>
+        {labelText}
       </Text>
     </View>
   );

@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Keyboard,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { GiftedChat, IMessage, Bubble, InputToolbar, Composer, Send } from 'react-native-gifted-chat';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -26,7 +27,10 @@ import {
   subscribeToPresence,
   unsubscribeFromPresence,
 } from '../services/presence';
+import { useConnectionStatus } from '../services/connection';
 import PeerStatus from '../components/PeerStatus';
+import ConnectionBanner from '../components/ConnectionBanner';
+import EmptyChat from '../components/EmptyChat';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Chat'>;
@@ -38,70 +42,82 @@ export default function ChatScreen({ navigation, route }: Props) {
   const [messages, setMessages] = useState<IMessage[]>([]);
   const [peerCount, setPeerCount] = useState(0);
   const [sending, setSending] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const seenIds = useRef(new Set<string>());
+  const unsubMessages = useRef<(() => void) | null>(null);
   const insets = useSafeAreaInsets();
   const userIdRef = useRef('');
   const userNameRef = useRef('Anonymous');
+  const { status: connStatus, reconnect } = useConnectionStatus();
 
   useEffect(() => {
     initChat();
     return () => {
-      unsubscribeFromMessages(room.id);
+      unsubMessages.current?.();
       unsubscribeFromPresence();
       setCurrentRoom('lobby');
     };
   }, []);
 
   const initChat = async () => {
-    const id = await getUserId();
-    const name = await getUserName();
+    const [id, name] = await Promise.all([getUserId(), getUserName()]);
     userIdRef.current = id;
     userNameRef.current = name || 'Anonymous';
 
     setCurrentRoom(room.id);
 
-    subscribeToPresence((_count, roomCounts, _peers) => {
+    subscribeToPresence((_count, roomCounts) => {
       setPeerCount(roomCounts[room.id] || 0);
     });
 
-    subscribeToMessages(room.id, (msg: any) => {
+    const unsub = subscribeToMessages(room.id, (msg: any) => {
       if (seenIds.current.has(msg._id)) return;
       seenIds.current.add(msg._id);
 
       setMessages((prev) => {
         if (prev.some((m) => m._id === msg._id)) return prev;
-
         const newMsg: IMessage = {
           _id: msg._id,
           text: msg.text || '',
           createdAt: new Date(msg.createdAt),
-          user: {
-            _id: msg.user._id,
-            name: msg.user.name,
-          },
+          user: { _id: msg.user._id, name: msg.user.name },
           image: msg.image,
-          video: msg.video,
         };
-
         return [newMsg, ...prev];
       });
     });
+
+    unsubMessages.current = unsub;
+    setIsInitialized(true);
   };
 
-  const onSend = useCallback((newMessages: IMessage[] = []) => {
-    const uid = userIdRef.current;
-    const uname = userNameRef.current;
-    if (!uid) return;
+  const onSend = useCallback(
+    (newMessages: IMessage[] = []) => {
+      const uid = userIdRef.current;
+      const uname = userNameRef.current;
+      if (!uid) return;
 
-    newMessages.forEach((msg) => {
-      sendMessage(room.id, {
-        _id: msg._id as string,
-        text: msg.text,
-        createdAt: new Date(msg.createdAt).getTime(),
-        user: { _id: uid, name: uname },
+      newMessages.forEach((msg) => {
+        const success = sendMessage(room.id, {
+          _id: msg._id as string,
+          text: msg.text,
+          createdAt: new Date(msg.createdAt).getTime(),
+          user: { _id: uid, name: uname },
+        });
+
+        if (!success) {
+          Alert.alert('Send failed', 'Message could not be sent. Check your connection.');
+        }
       });
-    });
-  }, [room.id]);
+    },
+    [room.id]
+  );
+
+  const appendLocalMessage = (msg: IMessage) => {
+    if (seenIds.current.has(msg._id as string)) return;
+    seenIds.current.add(msg._id as string);
+    setMessages((prev) => [msg, ...prev]);
+  };
 
   const handlePickImage = async () => {
     try {
@@ -112,16 +128,24 @@ export default function ChatScreen({ navigation, route }: Props) {
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images', 'videos'],
-        quality: 0.5,
-        allowsEditing: false,
+        mediaTypes: ['images'],
+        quality: 0.3,
+        allowsEditing: true,
       });
       if (result.canceled || !result.assets[0]) return;
-      const asset = result.assets[0];
+
       setSending(true);
-      await sendMediaMessage(room.id, asset.uri, asset.type === 'video' ? 'video' : 'image', {
+      const sent = await sendMediaMessage(room.id, result.assets[0].uri, 'image', {
         _id: userIdRef.current,
         name: userNameRef.current,
+      });
+
+      appendLocalMessage({
+        _id: sent._id,
+        text: '',
+        createdAt: new Date(sent.createdAt),
+        user: { _id: sent.user._id, name: sent.user.name },
+        image: sent.image,
       });
       setSending(false);
     } catch (error: any) {
@@ -138,12 +162,24 @@ export default function ChatScreen({ navigation, route }: Props) {
         Alert.alert('Permission required', 'Please allow access to your camera.');
         return;
       }
-      const result = await ImagePicker.launchCameraAsync({ quality: 0.5 });
+      const result = await ImagePicker.launchCameraAsync({
+        quality: 0.3,
+        allowsEditing: true,
+      });
       if (result.canceled || !result.assets[0]) return;
+
       setSending(true);
-      await sendMediaMessage(room.id, result.assets[0].uri, 'image', {
+      const sent = await sendMediaMessage(room.id, result.assets[0].uri, 'image', {
         _id: userIdRef.current,
         name: userNameRef.current,
+      });
+
+      appendLocalMessage({
+        _id: sent._id,
+        text: '',
+        createdAt: new Date(sent.createdAt),
+        user: { _id: sent.user._id, name: sent.user.name },
+        image: sent.image,
       });
       setSending(false);
     } catch (error: any) {
@@ -206,14 +242,18 @@ export default function ChatScreen({ navigation, route }: Props) {
 
   const renderActions = () => (
     <View style={styles.actionsContainer}>
-      <TouchableOpacity onPress={handlePickImage} style={styles.actionBtn}>
+      <TouchableOpacity onPress={handlePickImage} style={styles.actionBtn} disabled={sending}>
         <Text style={styles.actionIcon}>🖼</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={handleCamera} style={styles.actionBtn}>
+      <TouchableOpacity onPress={handleCamera} style={styles.actionBtn} disabled={sending}>
         <Text style={styles.actionIcon}>📷</Text>
       </TouchableOpacity>
     </View>
   );
+
+  const renderChatEmpty = () => <EmptyChat />;
+
+  const currentUserId = userIdRef.current || '__init__';
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -230,48 +270,56 @@ export default function ChatScreen({ navigation, route }: Props) {
             <Text style={styles.roomDesc} numberOfLines={1}>{room.description}</Text>
           </View>
         </View>
-        <PeerStatus peerCount={peerCount} />
+        <PeerStatus peerCount={peerCount} isConnected={connStatus === 'connected'} />
       </View>
+
+      <ConnectionBanner status={connStatus} onReconnect={reconnect} />
 
       {sending && (
         <View style={styles.sendingBar}>
-          <Text style={styles.sendingText}>Sending media P2P...</Text>
+          <ActivityIndicator size="small" color={Colors.primary} style={{ marginRight: 8 }} />
+          <Text style={styles.sendingText}>Sending image P2P...</Text>
         </View>
       )}
 
-      <GiftedChat
-        {...{
-          messages,
-          onSend: (msgs: IMessage[]) => onSend(msgs),
-          user: {
-            _id: userIdRef.current || 'me',
-            name: userNameRef.current,
-          },
-          renderBubble,
-          renderInputToolbar,
-          renderComposer,
-          renderSend,
-          renderActions,
-          scrollToBottom: true,
-          scrollToBottomStyle: styles.scrollToBottom,
-          showUserAvatar: false,
-          alwaysShowSend: true,
-          renderUsernameOnMessage: true,
-          showAvatarForEveryMessage: false,
-          timeTextStyle: {
-            right: { color: Colors.textMuted, ...Typography.small },
-            left: { color: Colors.textMuted, ...Typography.small },
-          },
-          bottomOffset: Platform.OS === 'ios' ? insets.bottom : 0,
-          minInputToolbarHeight: 60,
-          keyboardShouldPersistTaps: 'handled',
-          listViewProps: {
-            style: { backgroundColor: Colors.background },
-            keyboardDismissMode: 'interactive',
-          },
-          isKeyboardInternallyHandled: Platform.OS === 'android',
-        } as any}
-      />
+      {!isInitialized ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Connecting to peers...</Text>
+        </View>
+      ) : (
+        <GiftedChat
+          {...{
+            messages,
+            onSend: (msgs: IMessage[]) => onSend(msgs),
+            user: {
+              _id: currentUserId,
+              name: userNameRef.current,
+            },
+            renderBubble,
+            renderInputToolbar,
+            renderComposer,
+            renderSend,
+            renderActions,
+            renderChatEmpty,
+            inverted: true,
+            alwaysShowSend: true,
+            renderUsernameOnMessage: true,
+            showAvatarForEveryMessage: false,
+            timeTextStyle: {
+              right: { color: Colors.textMuted, ...Typography.small },
+              left: { color: Colors.textMuted, ...Typography.small },
+            },
+            bottomOffset: Platform.OS === 'ios' ? insets.bottom : 0,
+            minInputToolbarHeight: 60,
+            keyboardShouldPersistTaps: 'handled',
+            listViewProps: {
+              style: { backgroundColor: Colors.background },
+              keyboardDismissMode: 'interactive',
+            },
+          } as any}
+        />
+      )}
     </View>
   );
 }
@@ -280,6 +328,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    ...Typography.caption,
+    color: Colors.textMuted,
   },
   header: {
     flexDirection: 'row',
@@ -325,10 +383,12 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   sendingBar: {
-    backgroundColor: Colors.primaryGlow,
-    paddingVertical: 5,
-    paddingHorizontal: 16,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primaryGlow,
+    paddingVertical: 6,
+    paddingHorizontal: 16,
   },
   sendingText: {
     ...Typography.small,
@@ -401,10 +461,5 @@ const styles = StyleSheet.create({
   },
   actionIcon: {
     fontSize: 20,
-  },
-  scrollToBottom: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
 });

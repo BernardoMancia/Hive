@@ -17,3 +17,5 @@ web-build/
 *.aab
 .gradle/
 local.properties
+.apk
+*.apk

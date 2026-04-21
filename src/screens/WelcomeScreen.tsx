@@ -10,12 +10,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
 import { RootStackParamList } from '../types';
 import { getUserName, setUserName, getUserId, initPresence } from '../services/presence';
+import { useConnectionStatus } from '../services/connection';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Welcome'>;
@@ -24,6 +26,7 @@ type Props = {
 export default function WelcomeScreen({ navigation }: Props) {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(true);
+  const [joining, setJoining] = useState(false);
 
   const logoScale = useRef(new Animated.Value(0)).current;
   const titleFade = useRef(new Animated.Value(0)).current;
@@ -32,6 +35,8 @@ export default function WelcomeScreen({ navigation }: Props) {
   const inputFade = useRef(new Animated.Value(0)).current;
   const buttonFade = useRef(new Animated.Value(0)).current;
   const hexRotation = useRef(new Animated.Value(0)).current;
+
+  const { status: connStatus } = useConnectionStatus();
 
   useEffect(() => {
     checkExistingUser();
@@ -110,6 +115,7 @@ export default function WelcomeScreen({ navigation }: Props) {
       return;
     }
 
+    setJoining(true);
     try {
       await setUserName(trimmed);
       const userId = await getUserId();
@@ -117,6 +123,7 @@ export default function WelcomeScreen({ navigation }: Props) {
       navigation.replace('Home');
     } catch (e) {
       Alert.alert('Error', 'Failed to initialize. Please try again.');
+      setJoining(false);
     }
   };
 
@@ -125,7 +132,15 @@ export default function WelcomeScreen({ navigation }: Props) {
     outputRange: ['0deg', '360deg'],
   });
 
-  if (loading) return <View style={styles.container} />;
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+        <Text style={styles.loadingEmoji}>🐝</Text>
+        <ActivityIndicator size="small" color={Colors.primary} style={{ marginTop: 16 }} />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -133,7 +148,7 @@ export default function WelcomeScreen({ navigation }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-      
+
       <View style={styles.bgDecor}>
         <Animated.View
           style={[
@@ -185,6 +200,7 @@ export default function WelcomeScreen({ navigation }: Props) {
             autoCorrect={false}
             returnKeyType="go"
             onSubmitEditing={handleEnter}
+            editable={!joining}
           />
         </Animated.View>
 
@@ -192,14 +208,20 @@ export default function WelcomeScreen({ navigation }: Props) {
           <TouchableOpacity
             style={[
               styles.button,
-              name.trim().length < 2 && styles.buttonDisabled,
+              (name.trim().length < 2 || joining) && styles.buttonDisabled,
             ]}
             onPress={handleEnter}
-            disabled={name.trim().length < 2}
+            disabled={name.trim().length < 2 || joining}
             activeOpacity={0.85}
           >
-            <Text style={styles.buttonText}>Join the Hive</Text>
-            <Text style={styles.buttonArrow}>→</Text>
+            {joining ? (
+              <ActivityIndicator size="small" color={Colors.textInverse} />
+            ) : (
+              <>
+                <Text style={styles.buttonText}>Join the Hive</Text>
+                <Text style={styles.buttonArrow}>→</Text>
+              </>
+            )}
           </TouchableOpacity>
         </Animated.View>
 
@@ -217,6 +239,14 @@ export default function WelcomeScreen({ navigation }: Props) {
             <Text style={styles.featureText}>Distributed network</Text>
           </View>
         </Animated.View>
+
+        {connStatus !== 'connected' && (
+          <Animated.View style={[styles.connWarning, { opacity: buttonFade }]}>
+            <Text style={styles.connWarningText}>
+              ⚠ Network issues detected — you can still join
+            </Text>
+          </Animated.View>
+        )}
       </View>
     </KeyboardAvoidingView>
   );
@@ -226,6 +256,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingEmoji: {
+    fontSize: 56,
   },
   bgDecor: {
     position: 'absolute',
@@ -306,6 +345,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 16,
     gap: 10,
+    minHeight: 54,
   },
   buttonDisabled: {
     opacity: 0.4,
@@ -338,5 +378,19 @@ const styles = StyleSheet.create({
   featureText: {
     ...Typography.small,
     color: Colors.textMuted,
+  },
+  connWarning: {
+    marginTop: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 214, 0, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 214, 0, 0.2)',
+  },
+  connWarningText: {
+    ...Typography.small,
+    color: Colors.warning,
+    textAlign: 'center',
   },
 });

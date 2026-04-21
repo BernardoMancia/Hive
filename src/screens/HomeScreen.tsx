@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -27,8 +27,11 @@ import {
   initPresence,
   getUserId,
 } from '../services/presence';
+import { resetGun } from '../services/gun';
+import { useConnectionStatus } from '../services/connection';
 import OnlineCounter from '../components/OnlineCounter';
 import RoomCard from '../components/RoomCard';
+import ConnectionBanner from '../components/ConnectionBanner';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
@@ -42,30 +45,50 @@ export default function HomeScreen({ navigation }: Props) {
   const [showNameModal, setShowNameModal] = useState(false);
   const [newName, setNewName] = useState('');
   const [savingName, setSavingName] = useState(false);
+  const unsubPresenceRef = useRef<(() => void) | null>(null);
   const insets = useSafeAreaInsets();
+  const { status: connStatus, reconnect } = useConnectionStatus();
 
   useEffect(() => {
     setCurrentRoom('lobby');
     loadName();
+    startPresenceSubscription();
 
-    subscribeToPresence((count, counts, _peers) => {
+    return () => {
+      unsubPresenceRef.current?.();
+    };
+  }, []);
+
+  const startPresenceSubscription = () => {
+    unsubPresenceRef.current?.();
+    const unsub = subscribeToPresence((count, counts) => {
       setOnlineCount(count);
       setRoomCounts(counts);
     });
-
-    return () => {
-      unsubscribeFromPresence();
-    };
-  }, []);
+    unsubPresenceRef.current = unsub;
+  };
 
   const loadName = async () => {
     const name = await getUserName();
     if (name) setCurrentName(name);
   };
 
-  const onRefresh = useCallback(() => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
+    try {
+      unsubPresenceRef.current?.();
+      resetGun();
+
+      const [userId, name] = await Promise.all([getUserId(), getUserName()]);
+      if (name) {
+        await initPresence(userId, name);
+      }
+
+      startPresenceSubscription();
+    } catch (e) {
+      console.warn('[Hive] Refresh failed:', e);
+    }
+    setTimeout(() => setRefreshing(false), 800);
   }, []);
 
   const handleRoomPress = async (room: ChatRoom) => {
@@ -117,7 +140,7 @@ export default function HomeScreen({ navigation }: Props) {
             <Text style={styles.logo}>🐝</Text>
             <Text style={styles.appName}>Hive</Text>
           </View>
-          <OnlineCounter count={onlineCount} />
+          <OnlineCounter count={onlineCount} isConnected={connStatus === 'connected'} />
         </View>
 
         <View style={styles.headerBottom}>
@@ -134,6 +157,8 @@ export default function HomeScreen({ navigation }: Props) {
           </TouchableOpacity>
         </View>
       </View>
+
+      <ConnectionBanner status={connStatus} onReconnect={reconnect} />
 
       <ScrollView
         style={styles.scrollView}
@@ -165,6 +190,7 @@ export default function HomeScreen({ navigation }: Props) {
           <Text style={styles.footerText}>
             ⬡ P2P Network — every peer sustains the hive
           </Text>
+          <Text style={styles.footerVersion}>v2.1.0</Text>
         </View>
       </ScrollView>
 
@@ -179,11 +205,7 @@ export default function HomeScreen({ navigation }: Props) {
           activeOpacity={1}
           onPress={() => setShowNameModal(false)}
         >
-          <TouchableOpacity
-            activeOpacity={1}
-            style={styles.modalCard}
-            onPress={() => {}}
-          >
+          <TouchableOpacity activeOpacity={1} style={styles.modalCard} onPress={() => {}}>
             <Text style={styles.modalTitle}>Change Your Name</Text>
             <Text style={styles.modalSubtitle}>
               This is how other peers will see you
@@ -303,11 +325,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 24,
     paddingBottom: 8,
+    gap: 4,
   },
   footerText: {
     ...Typography.small,
     color: Colors.textMuted,
     textAlign: 'center',
+  },
+  footerVersion: {
+    ...Typography.small,
+    color: Colors.textMuted,
+    opacity: 0.5,
   },
   modalOverlay: {
     flex: 1,
