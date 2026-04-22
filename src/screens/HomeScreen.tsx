@@ -210,7 +210,7 @@ export default function HomeScreen({ navigation }: Props) {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>⬡ P2P Network — every peer sustains the hive</Text>
-          <Text style={styles.footerVersion}>v2.1.0</Text>
+          <Text style={styles.footerVersion}>v2.1.1</Text>
         </View>
       </ScrollView>
 

@@ -1,81 +1,95 @@
-# Release Notes — Hive v2.1.0
-
-## English
-
-**Version:** 2.1.0 (Production)
-**Version Code:** 3
-**Release Type:** Production
-**Release Date:** 2026-04-21
-
-### What's New
-
-- **Fully Decentralized Network**: Removed all connections to centralized servers and VPS infrastructure. The app now connects exclusively through public GunDB community relays (`peer.wallie.io`, `relay.peer.ooo`).
-
-- **New Data Namespace**: Migrated to `hive_v2` namespace for cleaner peer synchronization, isolating data from legacy relay contamination.
-
-- **Smarter Connection Management**: Connection status now correctly waits for the `hi` event from GunDB before marking as connected, eliminating false "connected" states. Exponential backoff reconnection (3s → 4.5s → 6.75s → up to 30s).
-
-- **Fixed Chat Layout**: Resolved visual layout flip when the first message arrived in a conversation.
-
-- **Optimistic Image Sending**: Images now appear instantly in the chat as soon as you send them, without waiting for P2P sync confirmation.
-
-- **Fixed Memory Leak**: Message listeners are now properly cleaned up when leaving a chat room.
-
-- **Fixed Presence Heartbeat**: Heartbeat timer no longer duplicates on app resume. App state changes (background/foreground) are now correctly handled.
-
-- **Improved Media Handling**: Image size limit enforcer now correctly reads file size using the `expo-file-system` legacy API. Clear error messages when the image is too large (limit: 200KB).
-
-- **Better Loading States**: Chat screen shows a connecting indicator while your peer identity is being resolved, preventing "ghost" user IDs.
-
-### Bug Fixes
-
-- Fixed stale closure in the room list refresh function
-- Fixed `markOffline` incorrectly re-initializing the GunDB instance when the app went to background
-- Fixed `AppState` listener not re-registering after `stopPresence()` was called
+# Release Notes - Hive
 
 ---
 
-## Português (PT-BR)
+## v2.1.1 — Patch Release
 
-**Versão:** 2.1.0 (Produção)
-**Código de Versão:** 3
-**Tipo de Lançamento:** Produção
-**Data de Lançamento:** 21/04/2026
+**Version:** 2.1.1 (Production)
+**Version Code:** 4
+**Release Date:** 2026-04-22
+
+---
+
+### English
+
+**What's new in 2.1.1**
+
+This release is a full logic rewrite focused on stability and correctness. No new features were added; all changes are internal improvements.
+
+- Fixed double-initialization guard in GunDB service (prevents duplicate peer connections)
+- Fixed race condition in `resetGun` that caused a brief incorrect "reconnecting" status flash
+- Fixed memory leak: animation loops (breathe, float, hex-rotate) now properly cancelled on component unmount
+- Fixed `initPresence` being called multiple times without guard, which duplicated heartbeat timers
+- Fixed `markOffline` accidentally re-initializing GunDB during shutdown
+- Fixed peer count duplication caused by GunDB emitting the same node multiple times (now uses `Map` dedup)
+- Increased `STALE_THRESHOLD` from 35s to 50s to reduce false "offline" detections
+- Fixed media upload: `size = undefined` from `FileSystem.getInfoAsync` now throws explicit error instead of passing silently
+- Added image extension allowlist + MIME type map for correct media validation
+- Fixed `subscribeToPresence` not being cleaned up on `ChatScreen` unmount (caused ghost peer counts)
+- Fixed `renderActions` recreated on every render in `ChatScreen` (now memoized with `useMemo`)
+- Fixed userId being `'__init__'` before async init completed, causing sent messages to appear on wrong side
+- Added `isMounted` guard to all async callbacks in `WelcomeScreen`, `HomeScreen`, `ChatScreen`, `AgeVerificationScreen`
+- Fixed double-tap bug in `AgeVerificationScreen` that could trigger `navigation.replace` twice
+- Fixed `PeerStatus` recalculating `hexagons` array on every render (now `useMemo`)
+- Fixed `OnlineCounter` breathe animation conflicting with pulse animation (animations now sequenced correctly)
 
 <pt-BR>
-### O que há de novo
+**O que há de novo na versão 2.1.1**
 
-- **Rede Totalmente Descentralizada**: Removidas todas as conexões com servidores centralizados e infraestrutura de VPS. O aplicativo agora se conecta exclusivamente através de relays públicos da comunidade GunDB (`peer.wallie.io`, `relay.peer.ooo`).
+Esta versão é uma reescrita completa da lógica focada em estabilidade e correção. Nenhuma nova funcionalidade foi adicionada; todas as mudanças são melhorias internas.
 
-- **Novo Namespace de Dados**: Migração para o namespace `hive_v2` para sincronização de peers mais limpa, isolando dados de contaminação por relays legados.
-
-- **Gerenciamento de Conexão Mais Inteligente**: O status de conexão agora aguarda corretamente o evento `hi` do GunDB antes de marcar como conectado, eliminando estados "conectado" falsos. Reconexão com backoff exponencial (3s → 4,5s → 6,75s → até 30s).
-
-- **Layout do Chat Corrigido**: Resolvida a inversão visual do layout quando a primeira mensagem chegava em uma conversa.
-
-- **Envio Otimista de Imagens**: As imagens agora aparecem instantaneamente no chat assim que são enviadas, sem aguardar a confirmação da sincronização P2P.
-
-- **Vazamento de Memória Corrigido**: Os listeners de mensagens agora são limpos corretamente ao sair de uma sala de chat.
-
-- **Heartbeat de Presença Corrigido**: O timer de heartbeat não duplica mais na retomada do aplicativo. As mudanças de estado do app (segundo plano/primeiro plano) são tratadas corretamente.
-
-- **Tratamento de Mídia Melhorado**: O limitador de tamanho de imagem agora lê corretamente o tamanho do arquivo usando a API legada do `expo-file-system`. Mensagens de erro claras quando a imagem é muito grande (limite: 200KB).
-
-- **Melhores Estados de Carregamento**: A tela do chat exibe um indicador de conexão enquanto sua identidade de peer é resolvida, evitando IDs de usuário "fantasmas".
-
-### Correções de Bugs
-
-- Corrigido closure desatualizado na função de atualização da lista de salas
-- Corrigido `markOffline` reinicializando incorretamente a instância do GunDB ao ir para segundo plano
-- Corrigido listener do `AppState` não se registrando novamente após `stopPresence()` ser chamado
+- Corrigida dupla inicialização no serviço GunDB (evita conexões de peers duplicadas)
+- Corrigida race condition no `resetGun` que causava flash incorreto de status "reconnecting"
+- Corrigido vazamento de memória: loops de animação (breathe, float, rotação hex) agora são cancelados corretamente no unmount
+- Corrigida chamada múltipla de `initPresence` sem guard, que duplicava timers de heartbeat
+- Corrigido `markOffline` reinicializando acidentalmente o GunDB durante shutdown
+- Corrigida duplicação de contagem de peers causada pelo GunDB emitindo o mesmo nó múltiplas vezes (agora usa `Map` para deduplicação)
+- `STALE_THRESHOLD` aumentado de 35s para 50s para reduzir detecções falsas de "offline"
+- Corrigido upload de mídia: `size = undefined` do `FileSystem.getInfoAsync` agora lança erro explícito em vez de passar silenciosamente
+- Adicionada lista de extensões permitidas + mapa de MIME type para validação correta de mídia
+- Corrigido `subscribeToPresence` não sendo limpo no unmount do `ChatScreen` (causava contagens de peers fantasmas)
+- Corrigido `renderActions` sendo recriado a cada render no `ChatScreen` (agora memoizado com `useMemo`)
+- Corrigido userId sendo `'__init__'` antes do init assíncrono completar, fazendo mensagens enviadas aparecerem no lado errado
+- Adicionado guard `isMounted` em todos os callbacks assíncronos de `WelcomeScreen`, `HomeScreen`, `ChatScreen`, `AgeVerificationScreen`
+- Corrigido bug de duplo toque em `AgeVerificationScreen` que disparava `navigation.replace` duas vezes
+- Corrigido `PeerStatus` recalculando array `hexagons` a cada render (agora `useMemo`)
+- Corrigida animação breathe do `OnlineCounter` conflitando com a animação pulse (animações agora sequenciadas corretamente)
 </pt-BR>
 
 ---
 
-## Google Play Store — Short Description (EN)
+## v2.1.0 — Production Release
 
-> Hive is a 100% P2P, decentralized chat app. No servers, no login, no tracking. Just peers talking to peers.
+**Version:** 2.1.0 (Production)
+**Version Code:** 3
+**Release Date:** 2026-04-21
 
-## Google Play Store — Descrição Curta (PT-BR)
+---
 
-> Hive é um app de chat 100% P2P e descentralizado. Sem servidores, sem cadastro, sem rastreamento. Apenas peers conversando entre si.
+### English
+
+**What's new in 2.1.0**
+
+- P2P chat with no central server — completely decentralized
+- 12 themed chat rooms including a protected Adult room
+- Image sharing via peer-to-peer (gallery and camera)
+- Real-time peer count with animated neon indicators
+- Persistent anonymous identity (local storage only)
+- Connection status banner with manual reconnect
+- Cybersecurity / Fluent UI dark design with glassmorphism
+- Smooth entry animations and floating effects
+- Zero data collection — no accounts, no tracking
+
+<pt-BR>
+**O que há de novo na versão 2.1.0**
+
+- Chat P2P sem servidor central — completamente descentralizado
+- 12 salas temáticas incluindo sala Adulto protegida por verificação de idade
+- Compartilhamento de imagens via peer-to-peer (galeria e câmera)
+- Contagem de peers em tempo real com indicadores neon animados
+- Identidade anônima persistente (armazenamento local apenas)
+- Banner de status de conexão com reconexão manual
+- Design escuro Cybersecurity / Fluent UI com glassmorphismo
+- Animações de entrada suaves e efeitos flutuantes
+- Zero coleta de dados — sem contas, sem rastreamento
+</pt-BR>
