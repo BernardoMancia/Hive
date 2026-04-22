@@ -28,46 +28,60 @@ export default function WelcomeScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
 
+  const isMounted = useRef(true);
+  const hexRotation = useRef(new Animated.Value(0)).current;
   const logoScale = useRef(new Animated.Value(0)).current;
   const titleFade = useRef(new Animated.Value(0)).current;
   const subtitleFade = useRef(new Animated.Value(0)).current;
   const inputSlide = useRef(new Animated.Value(40)).current;
   const inputFade = useRef(new Animated.Value(0)).current;
   const buttonFade = useRef(new Animated.Value(0)).current;
-  const hexRotation = useRef(new Animated.Value(0)).current;
+  const hexLoop = useRef<Animated.CompositeAnimation | null>(null);
 
   const { status: connStatus } = useConnectionStatus();
 
   useEffect(() => {
-    checkExistingUser();
+    isMounted.current = true;
     startAnimations();
+    checkExistingUser();
+
+    return () => {
+      isMounted.current = false;
+      hexLoop.current?.stop();
+    };
   }, []);
 
   const checkExistingUser = async () => {
     try {
       const existingName = await getUserName();
-      if (existingName) {
+      if (existingName && isMounted.current) {
         const userId = await getUserId();
         await initPresence(userId, existingName);
-        navigation.replace('Home');
+        if (isMounted.current) {
+          navigation.replace('Home');
+        }
         return;
       }
     } catch (e) {
-      console.warn('[Hive] Check existing user failed:', e);
+      console.warn('[Hive:welcome] checkExistingUser error:', e);
     }
-    setLoading(false);
+    if (isMounted.current) {
+      setLoading(false);
+    }
   };
 
   const startAnimations = () => {
-    Animated.loop(
+    const loop = Animated.loop(
       Animated.timing(hexRotation, {
         toValue: 1,
         duration: 20000,
         useNativeDriver: true,
       })
-    ).start();
+    );
+    hexLoop.current = loop;
+    loop.start();
 
-    Animated.stagger(200, [
+    Animated.stagger(180, [
       Animated.spring(logoScale, {
         toValue: 1,
         friction: 4,
@@ -106,6 +120,7 @@ export default function WelcomeScreen({ navigation }: Props) {
 
   const handleEnter = async () => {
     const trimmed = name.trim();
+
     if (trimmed.length < 2) {
       Alert.alert('Invalid name', 'Please enter at least 2 characters.');
       return;
@@ -120,10 +135,14 @@ export default function WelcomeScreen({ navigation }: Props) {
       await setUserName(trimmed);
       const userId = await getUserId();
       await initPresence(userId, trimmed);
-      navigation.replace('Home');
+      if (isMounted.current) {
+        navigation.replace('Home');
+      }
     } catch (e) {
-      Alert.alert('Error', 'Failed to initialize. Please try again.');
-      setJoining(false);
+      if (isMounted.current) {
+        Alert.alert('Error', 'Failed to initialize. Please try again.');
+        setJoining(false);
+      }
     }
   };
 
@@ -137,7 +156,7 @@ export default function WelcomeScreen({ navigation }: Props) {
       <View style={styles.loadingContainer}>
         <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
         <Text style={styles.loadingEmoji}>🐝</Text>
-        <ActivityIndicator size="small" color={Colors.primary} style={{ marginTop: 16 }} />
+        <ActivityIndicator size="small" color={Colors.primary} style={styles.loadingSpinner} />
       </View>
     );
   }
@@ -150,43 +169,27 @@ export default function WelcomeScreen({ navigation }: Props) {
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
 
       <View style={styles.bgDecor}>
-        <Animated.View
-          style={[
-            styles.hexBg,
-            { transform: [{ rotate: spin }] },
-          ]}
-        >
+        <Animated.View style={[styles.hexBg, { transform: [{ rotate: spin }] }]}>
           <Text style={styles.hexBgText}>⬡</Text>
         </Animated.View>
       </View>
 
       <View style={styles.content}>
-        <Animated.View
-          style={[
-            styles.logoContainer,
-            { transform: [{ scale: logoScale }] },
-          ]}
-        >
+        <Animated.View style={[styles.logoContainer, { transform: [{ scale: logoScale }] }]}>
           <Text style={styles.logoEmoji}>🐝</Text>
           <View style={styles.logoGlow} />
         </Animated.View>
 
-        <Animated.Text style={[styles.title, { opacity: titleFade }]}>
-          Hive
-        </Animated.Text>
+        <Animated.Text style={[styles.title, { opacity: titleFade }]}>Hive</Animated.Text>
 
         <Animated.Text style={[styles.subtitle, { opacity: subtitleFade }]}>
-          Decentralized P2P Chat{'\n'}
-          Every peer sustains the network
+          {'Decentralized P2P Chat\nEvery peer sustains the network'}
         </Animated.Text>
 
         <Animated.View
           style={[
             styles.inputContainer,
-            {
-              opacity: inputFade,
-              transform: [{ translateY: inputSlide }],
-            },
+            { opacity: inputFade, transform: [{ translateY: inputSlide }] },
           ]}
         >
           <TextInput
@@ -204,7 +207,7 @@ export default function WelcomeScreen({ navigation }: Props) {
           />
         </Animated.View>
 
-        <Animated.View style={{ opacity: buttonFade, width: '100%' }}>
+        <Animated.View style={[styles.buttonWrapper, { opacity: buttonFade }]}>
           <TouchableOpacity
             style={[
               styles.button,
@@ -226,18 +229,16 @@ export default function WelcomeScreen({ navigation }: Props) {
         </Animated.View>
 
         <Animated.View style={[styles.features, { opacity: buttonFade }]}>
-          <View style={styles.featureItem}>
-            <Text style={styles.featureIcon}>🔒</Text>
-            <Text style={styles.featureText}>No central server</Text>
-          </View>
-          <View style={styles.featureItem}>
-            <Text style={styles.featureIcon}>👤</Text>
-            <Text style={styles.featureText}>No login required</Text>
-          </View>
-          <View style={styles.featureItem}>
-            <Text style={styles.featureIcon}>🌐</Text>
-            <Text style={styles.featureText}>Distributed network</Text>
-          </View>
+          {[
+            { icon: '🔒', label: 'No central server' },
+            { icon: '👤', label: 'No login required' },
+            { icon: '🌐', label: 'Distributed network' },
+          ].map((f) => (
+            <View key={f.label} style={styles.featureItem}>
+              <Text style={styles.featureIcon}>{f.icon}</Text>
+              <Text style={styles.featureText}>{f.label}</Text>
+            </View>
+          ))}
         </Animated.View>
 
         {connStatus !== 'connected' && (
@@ -266,11 +267,15 @@ const styles = StyleSheet.create({
   loadingEmoji: {
     fontSize: 56,
   },
+  loadingSpinner: {
+    marginTop: 16,
+  },
   bgDecor: {
     position: 'absolute',
     top: -80,
     right: -60,
     opacity: 0.04,
+    pointerEvents: 'none',
   },
   hexBg: {
     width: 250,
@@ -321,6 +326,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 40,
+    lineHeight: 24,
   },
   inputContainer: {
     width: '100%',
@@ -336,6 +342,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     fontSize: 16,
+  },
+  buttonWrapper: {
+    width: '100%',
   },
   button: {
     flexDirection: 'row',

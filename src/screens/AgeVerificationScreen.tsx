@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   Animated,
   StyleSheet,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -22,11 +23,16 @@ type Props = {
 
 export default function AgeVerificationScreen({ navigation, route }: Props) {
   const { room } = route.params;
-  const insets = useSafeAreaInsets();
+  const [confirming, setConfirming] = useState(false);
+
+  const isMounted = useRef(true);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
+    isMounted.current = true;
+
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -39,11 +45,26 @@ export default function AgeVerificationScreen({ navigation, route }: Props) {
         useNativeDriver: true,
       }),
     ]).start();
+
+    return () => {
+      isMounted.current = false;
+    };
   }, []);
 
   const handleConfirm = async () => {
-    await setAgeVerified();
-    navigation.replace('Chat', { room });
+    if (confirming) return;
+    setConfirming(true);
+
+    try {
+      await setAgeVerified();
+      if (isMounted.current) {
+        navigation.replace('Chat', { room });
+      }
+    } catch (e) {
+      if (isMounted.current) {
+        setConfirming(false);
+      }
+    }
   };
 
   const handleCancel = () => {
@@ -53,47 +74,50 @@ export default function AgeVerificationScreen({ navigation, route }: Props) {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-      
       <View style={styles.backdrop} />
-      
+
       <Animated.View
         style={[
           styles.card,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }],
-          },
+          { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
         ]}
       >
         <View style={styles.iconContainer}>
           <Text style={styles.icon}>🔞</Text>
         </View>
-        
+
         <Text style={styles.title}>Adult Content</Text>
-        
+
         <Text style={styles.description}>
-          The room <Text style={styles.roomName}>"{room.name}"</Text> contains 
-          content intended exclusively for users aged 18 and over.
+          The room{' '}
+          <Text style={styles.roomName}>"{room.name}"</Text>
+          {' '}contains content intended exclusively for users aged 18 and over.
         </Text>
-        
+
         <Text style={styles.warning}>
-          By continuing, you declare that you are 18 years old or older and 
-          accept full responsibility for accessing this content.
+          By continuing, you declare that you are 18 years old or older and accept full
+          responsibility for accessing this content.
         </Text>
-        
+
         <View style={styles.buttons}>
           <TouchableOpacity
             onPress={handleConfirm}
-            style={styles.confirmButton}
+            style={[styles.confirmButton, confirming && styles.buttonLoading]}
             activeOpacity={0.85}
+            disabled={confirming}
           >
-            <Text style={styles.confirmText}>I'm 18+, enter</Text>
+            {confirming ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.confirmText}>I'm 18+, enter</Text>
+            )}
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             onPress={handleCancel}
             style={styles.cancelButton}
             activeOpacity={0.85}
+            disabled={confirming}
           >
             <Text style={styles.cancelText}>Go back</Text>
           </TouchableOpacity>
@@ -174,6 +198,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
+    minHeight: 52,
+    justifyContent: 'center',
+  },
+  buttonLoading: {
+    opacity: 0.7,
   },
   confirmText: {
     ...Typography.bodyBold,

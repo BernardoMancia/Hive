@@ -7,6 +7,7 @@ export default function EmptyChat() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const floatAnim = useRef(new Animated.Value(0)).current;
+  const floatLoop = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     Animated.parallel([
@@ -23,7 +24,7 @@ export default function EmptyChat() {
       }),
     ]).start();
 
-    Animated.loop(
+    const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(floatAnim, {
           toValue: -8,
@@ -36,17 +37,20 @@ export default function EmptyChat() {
           useNativeDriver: true,
         }),
       ])
-    ).start();
+    );
+    floatLoop.current = loop;
+    loop.start();
+
+    return () => {
+      floatLoop.current?.stop();
+    };
   }, []);
 
   return (
     <Animated.View
       style={[
         styles.container,
-        {
-          opacity: fadeAnim,
-          transform: [{ scale: scaleAnim }],
-        },
+        { opacity: fadeAnim, transform: [{ scale: scaleAnim }] },
       ]}
     >
       <Animated.View style={{ transform: [{ translateY: floatAnim }] }}>
@@ -54,8 +58,7 @@ export default function EmptyChat() {
       </Animated.View>
       <Text style={styles.title}>The hive is quiet...</Text>
       <Text style={styles.subtitle}>
-        Be the first to send a message and{'\n'}
-        start the buzz!
+        {'Be the first to send a message and\nstart the buzz!'}
       </Text>
       <View style={styles.hexRow}>
         <Text style={styles.hex}>⬡</Text>

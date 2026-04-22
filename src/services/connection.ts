@@ -7,12 +7,10 @@ export function useConnectionStatus(): {
   status: ConnectionState;
   reconnect: () => void;
 } {
-  const [status, setStatus] = useState<ConnectionState>(getConnectionStatus());
+  const [status, setStatus] = useState<ConnectionState>(getConnectionStatus);
 
   useEffect(() => {
-    const unsub = onConnectionStatusChange((newStatus) => {
-      setStatus(newStatus);
-    });
+    const unsub = onConnectionStatusChange(setStatus);
     return unsub;
   }, []);
 

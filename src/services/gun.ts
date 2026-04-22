@@ -6,41 +6,118 @@ const COMMUNITY_RELAYS = [
 ];
 
 export const NAMESPACE = 'hive_v2';
+
 const MAX_MESSAGES_PER_ROOM = 200;
-const RECONNECT_BASE_DELAY_MS = 3000;
+const RECONNECT_BASE_MS = 3000;
 const MAX_RECONNECT_ATTEMPTS = 8;
 
 type ConnectionStatus = 'connected' | 'disconnected' | 'reconnecting';
 
 let gunInstance: any = null;
+let isInitializing = false;
 let connectionStatus: ConnectionStatus = 'disconnected';
 let statusListeners: Array<(s: ConnectionStatus) => void> = [];
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
 
-function notifyStatus(status: ConnectionStatus) {
-  if (connectionStatus === status) return;
-  connectionStatus = status;
-  statusListeners.forEach((cb) => cb(status));
+function notifyStatus(next: ConnectionStatus): void {
+  if (connectionStatus === next) return;
+  connectionStatus = next;
+  statusListeners.forEach((cb) => cb(next));
 }
 
-function scheduleReconnect() {
+function clearReconnectTimer(): void {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+}
+
+function scheduleReconnect(): void {
   if (reconnectTimer) return;
   if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
     notifyStatus('disconnected');
     return;
   }
+
   const delay = Math.min(
-    RECONNECT_BASE_DELAY_MS * Math.pow(1.5, reconnectAttempts),
+    RECONNECT_BASE_MS * Math.pow(1.5, reconnectAttempts),
     30000
   );
   reconnectAttempts++;
   notifyStatus('reconnecting');
+
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
-    gunInstance = null;
-    getGun();
+    if (!gunInstance) {
+      createGunInstance();
+    }
   }, delay);
+}
+
+function createGunInstance(): void {
+  if (isInitializing) return;
+  isInitializing = true;
+
+  try {
+    const instance = Gun({
+      peers: COMMUNITY_RELAYS,
+      localStorage: false,
+      file: false,
+      radisk: false,
+      retry: Infinity,
+    });
+
+    instance.on('hi', () => {
+      reconnectAttempts = 0;
+      clearReconnectTimer();
+      notifyStatus('connected');
+    });
+
+    instance.on('bye', () => {
+      if (connectionStatus === 'connected') {
+        scheduleReconnect();
+      }
+    });
+
+    gunInstance = instance;
+  } catch (e) {
+    console.warn('[Hive:gun] Init failed, fallback:', e);
+    try {
+      gunInstance = Gun({ peers: COMMUNITY_RELAYS });
+    } catch (e2) {
+      console.warn('[Hive:gun] Fallback failed:', e2);
+      gunInstance = Gun({});
+      notifyStatus('disconnected');
+    }
+  } finally {
+    isInitializing = false;
+  }
+}
+
+export function getGun(): any {
+  if (!gunInstance) {
+    createGunInstance();
+  }
+  return gunInstance;
+}
+
+export function resetGun(): void {
+  clearReconnectTimer();
+  reconnectAttempts = 0;
+
+  if (gunInstance) {
+    try {
+      const peers = gunInstance._.opt?.peers || {};
+      Object.values(peers).forEach((peer: any) => {
+        try { peer?.wire?.close?.(); } catch (_) {}
+      });
+    } catch (_) {}
+    gunInstance = null;
+  }
+
+  createGunInstance();
+  notifyStatus('reconnecting');
 }
 
 export function onConnectionStatusChange(
@@ -57,68 +134,6 @@ export function getConnectionStatus(): ConnectionStatus {
   return connectionStatus;
 }
 
-export function getGun(): any {
-  if (gunInstance) return gunInstance;
-
-  try {
-    gunInstance = Gun({
-      peers: COMMUNITY_RELAYS,
-      localStorage: false,
-      file: false,
-      radisk: false,
-      retry: Infinity,
-    });
-
-    gunInstance.on('hi', () => {
-      reconnectAttempts = 0;
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
-      }
-      notifyStatus('connected');
-    });
-
-    gunInstance.on('bye', () => {
-      if (connectionStatus === 'connected') {
-        scheduleReconnect();
-      }
-    });
-  } catch (e) {
-    console.warn('[Hive] Gun init failed:', e);
-    try {
-      gunInstance = Gun({ peers: COMMUNITY_RELAYS });
-    } catch (e2) {
-      console.warn('[Hive] Gun fallback failed:', e2);
-      gunInstance = Gun({});
-      notifyStatus('disconnected');
-      return gunInstance;
-    }
-  }
-
-  return gunInstance;
-}
-
-export function resetGun(): any {
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-  }
-  reconnectAttempts = 0;
-
-  if (gunInstance) {
-    try {
-      const peers = gunInstance._.opt?.peers || {};
-      Object.values(peers).forEach((peer: any) => {
-        peer?.wire?.close?.();
-      });
-    } catch (_) {}
-    gunInstance = null;
-  }
-
-  notifyStatus('reconnecting');
-  return getGun();
-}
-
 export function sendMessage(
   roomId: string,
   message: {
@@ -129,15 +144,20 @@ export function sendMessage(
     image?: string;
   }
 ): boolean {
+  if (!message._id || !message.user._id) return false;
+
   try {
-    const data: Record<string, any> = {
+    const payload: Record<string, any> = {
       _id: message._id,
       text: message.text || '',
       createdAt: message.createdAt,
       userId: message.user._id,
-      userName: message.user.name,
+      userName: message.user.name || 'Anonymous',
     };
-    if (message.image) data.image = message.image;
+
+    if (message.image) {
+      payload.image = message.image;
+    }
 
     getGun()
       .get(NAMESPACE)
@@ -145,20 +165,27 @@ export function sendMessage(
       .get(roomId)
       .get('messages')
       .get(message._id)
-      .put(data);
+      .put(payload);
 
     return true;
   } catch (e) {
-    console.warn('[Hive] sendMessage failed:', e);
+    console.warn('[Hive:gun] sendMessage error:', e);
     return false;
   }
 }
 
 export function subscribeToMessages(
   roomId: string,
-  callback: (message: any) => void
+  callback: (message: {
+    _id: string;
+    text: string;
+    createdAt: number;
+    user: { _id: string; name: string };
+    image?: string;
+  }) => void
 ): () => void {
   const seenIds = new Set<string>();
+  let active = true;
 
   try {
     const node = getGun()
@@ -168,7 +195,8 @@ export function subscribeToMessages(
       .get('messages');
 
     node.map().on((data: any) => {
-      if (!data || !data._id || !data.userId) return;
+      if (!active) return;
+      if (!data?._id || !data?.userId) return;
       if (seenIds.has(data._id)) return;
 
       seenIds.add(data._id);
@@ -181,7 +209,7 @@ export function subscribeToMessages(
       callback({
         _id: data._id,
         text: data.text || '',
-        createdAt: data.createdAt || Date.now(),
+        createdAt: typeof data.createdAt === 'number' ? data.createdAt : Date.now(),
         user: {
           _id: data.userId,
           name: data.userName || 'Anonymous',
@@ -191,25 +219,12 @@ export function subscribeToMessages(
     });
 
     return () => {
-      try { node.map().off(); } catch (_) {}
+      active = false;
       seenIds.clear();
+      try { node.map().off(); } catch (_) {}
     };
   } catch (e) {
-    console.warn('[Hive] subscribeToMessages failed:', e);
+    console.warn('[Hive:gun] subscribeToMessages error:', e);
     return () => {};
-  }
-}
-
-export function unsubscribeFromMessages(roomId: string) {
-  try {
-    getGun()
-      .get(NAMESPACE)
-      .get('rooms')
-      .get(roomId)
-      .get('messages')
-      .map()
-      .off();
-  } catch (e) {
-    console.warn('[Hive] unsubscribeFromMessages failed:', e);
   }
 }

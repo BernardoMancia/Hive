@@ -1,48 +1,26 @@
-import { getGun, onConnectionStatusChange, NAMESPACE } from './gun';
+import { getGun, NAMESPACE } from './gun';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, AppStateStatus } from 'react-native';
 
 const HEARTBEAT_INTERVAL_MS = 15000;
-const STALE_THRESHOLD_MS = 35000;
+const STALE_THRESHOLD_MS = 50000;
+
+const STORAGE_USER_ID = '@hive_user_id';
+const STORAGE_USER_NAME = '@hive_user_name';
+const STORAGE_AGE_VERIFIED = '@hive_age_verified';
 
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let appStateListener: any = null;
 let localUserId: string | null = null;
 let localUserName: string | null = null;
 let currentRoomId: string = 'lobby';
-let appStateSubscription: any = null;
-let presenceInitialized = false;
+let isPresenceActive = false;
 
-export async function initPresence(userId: string, userName: string): Promise<void> {
-  localUserId = userId;
-  localUserName = userName;
-  presenceInitialized = true;
-
-  startHeartbeat();
-
-  if (!appStateSubscription) {
-    appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
-  }
-}
-
-function handleAppStateChange(nextState: AppStateStatus) {
-  if (!presenceInitialized) return;
-
-  if (nextState === 'active') {
-    if (localUserId && localUserName) {
-      startHeartbeat();
-    }
-  } else if (nextState === 'background' || nextState === 'inactive') {
-    stopHeartbeat();
-    markOfflineSafe();
-  }
-}
-
-function sendHeartbeat() {
-  if (!localUserId || !localUserName) return;
+function sendHeartbeat(): void {
+  if (!localUserId || !localUserName || !isPresenceActive) return;
 
   try {
-    const gun = getGun();
-    gun
+    getGun()
       .get(NAMESPACE)
       .get('presence')
       .get(localUserId)
@@ -53,11 +31,11 @@ function sendHeartbeat() {
         roomId: currentRoomId,
       });
   } catch (e) {
-    console.warn('[Hive] Heartbeat failed:', e);
+    console.warn('[Hive:presence] Heartbeat failed:', e);
   }
 }
 
-function markOfflineSafe() {
+function markOffline(): void {
   if (!localUserId) return;
 
   try {
@@ -73,38 +51,63 @@ function markOfflineSafe() {
         roomId: null,
       });
   } catch (e) {
-    console.warn('[Hive] Mark offline failed:', e);
+    console.warn('[Hive:presence] Mark offline failed:', e);
   }
 }
 
-function startHeartbeat() {
-  if (heartbeatTimer) {
-    clearInterval(heartbeatTimer);
-  }
+function startHeartbeatTimer(): void {
+  stopHeartbeatTimer();
   sendHeartbeat();
   heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
 }
 
-function stopHeartbeat() {
+function stopHeartbeatTimer(): void {
   if (heartbeatTimer) {
     clearInterval(heartbeatTimer);
     heartbeatTimer = null;
   }
 }
 
-export function setCurrentRoom(roomId: string | null) {
-  currentRoomId = roomId || 'lobby';
-  if (localUserId) sendHeartbeat();
+function handleAppState(nextState: AppStateStatus): void {
+  if (!isPresenceActive) return;
+
+  if (nextState === 'active') {
+    startHeartbeatTimer();
+  } else if (nextState === 'background' || nextState === 'inactive') {
+    stopHeartbeatTimer();
+    markOffline();
+  }
 }
 
-export function stopPresence() {
-  presenceInitialized = false;
-  stopHeartbeat();
-  markOfflineSafe();
+export async function initPresence(userId: string, userName: string): Promise<void> {
+  if (isPresenceActive && localUserId === userId) return;
 
-  if (appStateSubscription) {
-    appStateSubscription.remove();
-    appStateSubscription = null;
+  localUserId = userId;
+  localUserName = userName;
+  isPresenceActive = true;
+
+  startHeartbeatTimer();
+
+  if (!appStateListener) {
+    appStateListener = AppState.addEventListener('change', handleAppState);
+  }
+}
+
+export function stopPresence(): void {
+  isPresenceActive = false;
+  stopHeartbeatTimer();
+  markOffline();
+
+  if (appStateListener) {
+    appStateListener.remove();
+    appStateListener = null;
+  }
+}
+
+export function setCurrentRoom(roomId: string | null): void {
+  currentRoomId = roomId ?? 'lobby';
+  if (isPresenceActive) {
+    sendHeartbeat();
   }
 }
 
@@ -112,93 +115,95 @@ export function subscribeToPresence(
   callback: (
     onlineCount: number,
     roomCounts: Record<string, number>,
-    peers: any[]
+    peers: Array<{ id: string; name: string; roomId: string | null }>
   ) => void
 ): () => void {
+  const peersMap = new Map<string, { id: string; name: string; lastSeen: number; roomId: string | null }>();
+  let active = true;
+
   try {
-    const gun = getGun();
-    const presenceNode = gun.get(NAMESPACE).get('presence');
-    const peersMap: Record<string, any> = {};
+    const node = getGun().get(NAMESPACE).get('presence');
 
-    presenceNode.map().on((data: any, key: string) => {
-      if (!data || !data.id) return;
+    node.map().on((data: any, key: string) => {
+      if (!active) return;
+      if (!data?.id) return;
 
-      const isOnline = data.lastSeen && Date.now() - data.lastSeen < STALE_THRESHOLD_MS;
+      const isOnline =
+        typeof data.lastSeen === 'number' &&
+        data.lastSeen > 0 &&
+        Date.now() - data.lastSeen < STALE_THRESHOLD_MS;
 
       if (isOnline) {
-        peersMap[key] = data;
+        peersMap.set(key, {
+          id: data.id,
+          name: data.name || 'Anonymous',
+          lastSeen: data.lastSeen,
+          roomId: data.roomId ?? null,
+        });
       } else {
-        delete peersMap[key];
+        peersMap.delete(key);
       }
 
-      const onlinePeers = Object.values(peersMap);
+      const peers = Array.from(peersMap.values());
+
       const roomCounts: Record<string, number> = {};
-      onlinePeers.forEach((peer: any) => {
+      peers.forEach((peer) => {
         if (peer.roomId) {
           roomCounts[peer.roomId] = (roomCounts[peer.roomId] || 0) + 1;
         }
       });
 
-      callback(onlinePeers.length, roomCounts, onlinePeers);
+      callback(peers.length, roomCounts, peers);
     });
 
     return () => {
-      try { presenceNode.map().off(); } catch (_) {}
+      active = false;
+      peersMap.clear();
+      try { node.map().off(); } catch (_) {}
     };
   } catch (e) {
-    console.warn('[Hive] Presence subscription failed:', e);
+    console.warn('[Hive:presence] subscribeToPresence error:', e);
     callback(0, {}, []);
     return () => {};
   }
 }
 
-export function unsubscribeFromPresence() {
-  try {
-    getGun().get(NAMESPACE).get('presence').map().off();
-  } catch (e) {
-    console.warn('[Hive] Unsubscribe presence failed:', e);
-  }
-}
-
 export async function getUserId(): Promise<string> {
   try {
-    let userId = await AsyncStorage.getItem('@hive_user_id');
-    if (!userId) {
-      userId = 'peer_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-      await AsyncStorage.setItem('@hive_user_id', userId);
+    let id = await AsyncStorage.getItem(STORAGE_USER_ID);
+    if (!id) {
+      id = `peer_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      await AsyncStorage.setItem(STORAGE_USER_ID, id);
     }
-    return userId;
-  } catch (e) {
-    const fallback = 'peer_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-    try {
-      await AsyncStorage.setItem('@hive_user_id', fallback);
-    } catch (_) {}
+    return id;
+  } catch (_) {
+    const fallback = `peer_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    try { await AsyncStorage.setItem(STORAGE_USER_ID, fallback); } catch (__) {}
     return fallback;
   }
 }
 
 export async function getUserName(): Promise<string | null> {
   try {
-    return await AsyncStorage.getItem('@hive_user_name');
-  } catch (e) {
+    return await AsyncStorage.getItem(STORAGE_USER_NAME);
+  } catch (_) {
     return null;
   }
 }
 
 export async function setUserName(name: string): Promise<void> {
-  await AsyncStorage.setItem('@hive_user_name', name);
+  await AsyncStorage.setItem(STORAGE_USER_NAME, name);
   localUserName = name;
 }
 
 export async function isAgeVerified(): Promise<boolean> {
   try {
-    const verified = await AsyncStorage.getItem('@hive_age_verified');
-    return verified === 'true';
-  } catch (e) {
+    return (await AsyncStorage.getItem(STORAGE_AGE_VERIFIED)) === 'true';
+  } catch (_) {
     return false;
   }
 }
 
 export async function setAgeVerified(): Promise<void> {
-  await AsyncStorage.setItem('@hive_age_verified', 'true');
+  await AsyncStorage.setItem(STORAGE_AGE_VERIFIED, 'true');
 }

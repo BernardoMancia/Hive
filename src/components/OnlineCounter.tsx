@@ -12,41 +12,10 @@ export default function OnlineCounter({ count, isConnected = true }: OnlineCount
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0.3)).current;
   const prevCount = useRef(count);
+  const breatheLoop = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
-    if (count !== prevCount.current) {
-      prevCount.current = count;
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(pulseAnim, {
-            toValue: 1.2,
-            duration: 200,
-            useNativeDriver: true,
-          }),
-          Animated.timing(glowAnim, {
-            toValue: 0.8,
-            duration: 200,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.parallel([
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-          Animated.timing(glowAnim, {
-            toValue: 0.3,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-        ]),
-      ]).start();
-    }
-  }, [count]);
-
-  useEffect(() => {
-    const breathe = Animated.loop(
+    const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(glowAnim, {
           toValue: 0.6,
@@ -60,27 +29,61 @@ export default function OnlineCounter({ count, isConnected = true }: OnlineCount
         }),
       ])
     );
-    breathe.start();
-    return () => breathe.stop();
+    breatheLoop.current = loop;
+    loop.start();
+
+    return () => {
+      breatheLoop.current?.stop();
+    };
   }, []);
+
+  useEffect(() => {
+    if (count === prevCount.current) return;
+    prevCount.current = count;
+
+    breatheLoop.current?.stop();
+
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(pulseAnim, {
+          toValue: 1.2,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowAnim, {
+          toValue: 0.8,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowAnim, {
+          toValue: 0.3,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start(() => {
+      breatheLoop.current?.start();
+    });
+  }, [count]);
 
   const dotColor = isConnected ? Colors.online : Colors.offline;
   const labelText = !isConnected
     ? 'offline'
     : count === 1
-      ? 'peer online'
-      : 'peers online';
+    ? 'peer online'
+    : 'peers online';
 
   return (
     <View style={styles.container}>
       <Animated.View
-        style={[
-          styles.glowOrb,
-          {
-            opacity: glowAnim,
-            transform: [{ scale: pulseAnim }],
-          },
-        ]}
+        style={[styles.glowOrb, { opacity: glowAnim, transform: [{ scale: pulseAnim }] }]}
       />
       <View style={styles.dotContainer}>
         <View style={[styles.dot, { backgroundColor: dotColor, shadowColor: dotColor }]} />
@@ -129,8 +132,6 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.online,
-    shadowColor: Colors.online,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 4,

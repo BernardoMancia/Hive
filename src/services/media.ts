@@ -1,7 +1,12 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { sendMessage } from './gun';
 
-const MAX_IMAGE_SIZE_BYTES = 200 * 1024;
+const MAX_SIZE_BYTES = 200 * 1024;
+const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+
+function getExtension(uri: string): string {
+  return uri.split('.').pop()?.toLowerCase().split('?')[0] ?? '';
+}
 
 export async function sendMediaMessage(
   roomId: string,
@@ -19,27 +24,43 @@ export async function sendMediaMessage(
     throw new Error('Video sharing is not supported in P2P mode.');
   }
 
+  const ext = getExtension(uri);
+  if (!ALLOWED_EXTENSIONS.includes(ext)) {
+    throw new Error(`Unsupported image format: .${ext || 'unknown'}`);
+  }
+
   const fileInfo = await FileSystem.getInfoAsync(uri);
 
   if (!fileInfo.exists) {
     throw new Error('File not found.');
   }
 
-  const fileSize: number = fileInfo.size ?? 0;
-  if (fileSize > MAX_IMAGE_SIZE_BYTES) {
-    const sizeKB = Math.round(fileSize / 1024);
-    const limitKB = Math.round(MAX_IMAGE_SIZE_BYTES / 1024);
-    throw new Error(
-      `Image too large (${sizeKB}KB). Limit is ${limitKB}KB. Please pick a smaller image.`
-    );
+  if (typeof fileInfo.size !== 'number') {
+    throw new Error('Could not determine file size. Please try a different image.');
+  }
+
+  if (fileInfo.size > MAX_SIZE_BYTES) {
+    const sizeKB = Math.round(fileInfo.size / 1024);
+    const limitKB = Math.round(MAX_SIZE_BYTES / 1024);
+    throw new Error(`Image too large (${sizeKB}KB). Maximum allowed is ${limitKB}KB.`);
   }
 
   const base64 = await FileSystem.readAsStringAsync(uri, {
     encoding: FileSystem.EncodingType.Base64,
   });
 
-  const dataUri = `data:image/jpeg;base64,${base64}`;
-  const messageId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const mimeMap: Record<string, string> = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+  };
+
+  const mime = mimeMap[ext] ?? 'image/jpeg';
+  const dataUri = `data:${mime};base64,${base64}`;
+
+  const messageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
   const messageData = {
     _id: messageId,
@@ -51,13 +72,12 @@ export async function sendMediaMessage(
 
   const sent = sendMessage(roomId, messageData);
   if (!sent) {
-    throw new Error('Failed to send through P2P network. Check your connection.');
+    throw new Error('Failed to send through the P2P network. Check your connection.');
   }
 
   return messageData;
 }
 
 export function isBase64Media(uri?: string): boolean {
-  if (!uri) return false;
-  return uri.startsWith('data:');
+  return typeof uri === 'string' && uri.startsWith('data:');
 }

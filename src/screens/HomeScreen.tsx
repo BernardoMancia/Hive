@@ -19,7 +19,6 @@ import { RootStackParamList, ChatRoom } from '../types';
 import { ROOMS } from '../config/rooms';
 import {
   subscribeToPresence,
-  unsubscribeFromPresence,
   isAgeVerified,
   setCurrentRoom,
   getUserName,
@@ -45,50 +44,66 @@ export default function HomeScreen({ navigation }: Props) {
   const [showNameModal, setShowNameModal] = useState(false);
   const [newName, setNewName] = useState('');
   const [savingName, setSavingName] = useState(false);
-  const unsubPresenceRef = useRef<(() => void) | null>(null);
+
+  const isMounted = useRef(true);
+  const unsubPresence = useRef<(() => void) | null>(null);
   const insets = useSafeAreaInsets();
   const { status: connStatus, reconnect } = useConnectionStatus();
 
   useEffect(() => {
+    isMounted.current = true;
     setCurrentRoom('lobby');
-    loadName();
-    startPresenceSubscription();
+    loadUserName();
+    attachPresence();
 
     return () => {
-      unsubPresenceRef.current?.();
+      isMounted.current = false;
+      unsubPresence.current?.();
     };
   }, []);
 
-  const startPresenceSubscription = () => {
-    unsubPresenceRef.current?.();
+  const loadUserName = async () => {
+    const name = await getUserName();
+    if (name && isMounted.current) {
+      setCurrentName(name);
+    }
+  };
+
+  const attachPresence = () => {
+    unsubPresence.current?.();
     const unsub = subscribeToPresence((count, counts) => {
+      if (!isMounted.current) return;
       setOnlineCount(count);
       setRoomCounts(counts);
     });
-    unsubPresenceRef.current = unsub;
-  };
-
-  const loadName = async () => {
-    const name = await getUserName();
-    if (name) setCurrentName(name);
+    unsubPresence.current = unsub;
   };
 
   const onRefresh = useCallback(async () => {
+    if (!isMounted.current) return;
     setRefreshing(true);
+
     try {
-      unsubPresenceRef.current?.();
+      unsubPresence.current?.();
       resetGun();
 
       const [userId, name] = await Promise.all([getUserId(), getUserName()]);
-      if (name) {
+      if (name && isMounted.current) {
         await initPresence(userId, name);
       }
 
-      startPresenceSubscription();
+      if (isMounted.current) {
+        attachPresence();
+      }
     } catch (e) {
-      console.warn('[Hive] Refresh failed:', e);
+      console.warn('[Hive:home] onRefresh error:', e);
     }
-    setTimeout(() => setRefreshing(false), 800);
+
+    if (isMounted.current) {
+      setTimeout(() => {
+        if (isMounted.current) setRefreshing(false);
+      }, 800);
+    }
   }, []);
 
   const handleRoomPress = async (room: ChatRoom) => {
@@ -109,6 +124,7 @@ export default function HomeScreen({ navigation }: Props) {
 
   const handleSaveName = async () => {
     const trimmed = newName.trim();
+
     if (trimmed.length < 2) {
       Alert.alert('Invalid name', 'Please enter at least 2 characters.');
       return;
@@ -117,17 +133,23 @@ export default function HomeScreen({ navigation }: Props) {
       Alert.alert('Invalid name', 'Maximum 20 characters allowed.');
       return;
     }
+
     setSavingName(true);
     try {
       await setUserName(trimmed);
       const userId = await getUserId();
       await initPresence(userId, trimmed);
-      setCurrentName(trimmed);
-      setShowNameModal(false);
+      if (isMounted.current) {
+        setCurrentName(trimmed);
+        setShowNameModal(false);
+      }
     } catch (e) {
-      Alert.alert('Error', 'Failed to update name. Please try again.');
+      if (isMounted.current) {
+        Alert.alert('Error', 'Failed to update name. Please try again.');
+      }
+    } finally {
+      if (isMounted.current) setSavingName(false);
     }
-    setSavingName(false);
   };
 
   return (
@@ -187,9 +209,7 @@ export default function HomeScreen({ navigation }: Props) {
         ))}
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            ⬡ P2P Network — every peer sustains the hive
-          </Text>
+          <Text style={styles.footerText}>⬡ P2P Network — every peer sustains the hive</Text>
           <Text style={styles.footerVersion}>v2.1.0</Text>
         </View>
       </ScrollView>
@@ -207,9 +227,7 @@ export default function HomeScreen({ navigation }: Props) {
         >
           <TouchableOpacity activeOpacity={1} style={styles.modalCard} onPress={() => {}}>
             <Text style={styles.modalTitle}>Change Your Name</Text>
-            <Text style={styles.modalSubtitle}>
-              This is how other peers will see you
-            </Text>
+            <Text style={styles.modalSubtitle}>This is how other peers will see you</Text>
 
             <TextInput
               style={styles.modalInput}
@@ -240,9 +258,7 @@ export default function HomeScreen({ navigation }: Props) {
                 onPress={handleSaveName}
                 disabled={newName.trim().length < 2 || savingName}
               >
-                <Text style={styles.modalSaveText}>
-                  {savingName ? 'Saving...' : 'Save'}
-                </Text>
+                <Text style={styles.modalSaveText}>{savingName ? 'Saving...' : 'Save'}</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>

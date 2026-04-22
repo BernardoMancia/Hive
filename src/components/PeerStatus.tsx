@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { View, Text, Animated, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
@@ -22,31 +22,39 @@ export default function PeerStatus({ peerCount, isConnected = true }: PeerStatus
   }, []);
 
   useEffect(() => {
-    if (peerCount !== prevCount.current) {
-      prevCount.current = peerCount;
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.15,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
+    if (peerCount === prevCount.current) return;
+    prevCount.current = peerCount;
+
+    Animated.sequence([
+      Animated.timing(pulseAnim, {
+        toValue: 1.15,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(pulseAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, [peerCount]);
 
-  const dotColor = !isConnected ? Colors.offline : peerCount > 0 ? Colors.online : Colors.textMuted;
+  const hexagons = useMemo(
+    () => Array.from({ length: Math.min(peerCount, 6) }, (_, i) => i),
+    [peerCount]
+  );
+
+  const dotColor = !isConnected
+    ? Colors.offline
+    : peerCount > 0
+    ? Colors.online
+    : Colors.textMuted;
+
   const statusText = !isConnected
     ? 'offline'
     : peerCount === 0
-      ? 'no peers'
-      : `${peerCount} ${peerCount === 1 ? 'peer' : 'peers'}`;
-
-  const hexagons = Array.from({ length: Math.min(peerCount, 6) }, (_, i) => i);
+    ? 'no peers'
+    : `${peerCount} ${peerCount === 1 ? 'peer' : 'peers'}`;
 
   return (
     <Animated.View
@@ -63,7 +71,7 @@ export default function PeerStatus({ peerCount, isConnected = true }: PeerStatus
               style={[
                 styles.hexagon,
                 {
-                  backgroundColor: i === 0 ? Colors.primary : Colors.primary + '60',
+                  backgroundColor: i === 0 ? Colors.primary : `${Colors.primary}60`,
                   transform: [{ rotate: '30deg' }],
                 },
               ]}
@@ -107,6 +115,5 @@ const styles = StyleSheet.create({
   },
   text: {
     ...Typography.small,
-    color: Colors.primaryLight,
   },
 });

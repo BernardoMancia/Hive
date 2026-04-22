@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,14 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
-import { GiftedChat, IMessage, Bubble, InputToolbar, Composer, Send } from 'react-native-gifted-chat';
+import {
+  GiftedChat,
+  IMessage,
+  Bubble,
+  InputToolbar,
+  Composer,
+  Send,
+} from 'react-native-gifted-chat';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,14 +25,13 @@ import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
 import { RootStackParamList } from '../types';
-import { subscribeToMessages, unsubscribeFromMessages, sendMessage } from '../services/gun';
+import { subscribeToMessages, sendMessage } from '../services/gun';
 import { sendMediaMessage } from '../services/media';
 import {
   getUserId,
   getUserName,
   setCurrentRoom,
   subscribeToPresence,
-  unsubscribeFromPresence,
 } from '../services/presence';
 import { useConnectionStatus } from '../services/connection';
 import PeerStatus from '../components/PeerStatus';
@@ -42,54 +48,84 @@ export default function ChatScreen({ navigation, route }: Props) {
   const [messages, setMessages] = useState<IMessage[]>([]);
   const [peerCount, setPeerCount] = useState(0);
   const [sending, setSending] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+
+  const isMounted = useRef(true);
   const seenIds = useRef(new Set<string>());
   const unsubMessages = useRef<(() => void) | null>(null);
-  const insets = useSafeAreaInsets();
+  const unsubPresence = useRef<(() => void) | null>(null);
   const userIdRef = useRef('');
   const userNameRef = useRef('Anonymous');
+
+  const insets = useSafeAreaInsets();
   const { status: connStatus, reconnect } = useConnectionStatus();
 
   useEffect(() => {
+    isMounted.current = true;
     initChat();
+
     return () => {
+      isMounted.current = false;
       unsubMessages.current?.();
-      unsubscribeFromPresence();
-      setCurrentRoom('lobby');
+      unsubPresence.current?.();
+      setCurrentRoom(null);
     };
   }, []);
 
   const initChat = async () => {
-    const [id, name] = await Promise.all([getUserId(), getUserName()]);
-    userIdRef.current = id;
-    userNameRef.current = name || 'Anonymous';
+    try {
+      const [id, name] = await Promise.all([getUserId(), getUserName()]);
+      if (!isMounted.current) return;
 
-    setCurrentRoom(room.id);
+      userIdRef.current = id;
+      userNameRef.current = name || 'Anonymous';
 
-    subscribeToPresence((_count, roomCounts) => {
-      setPeerCount(roomCounts[room.id] || 0);
-    });
+      setCurrentRoom(room.id);
 
-    const unsub = subscribeToMessages(room.id, (msg: any) => {
-      if (seenIds.current.has(msg._id)) return;
-      seenIds.current.add(msg._id);
-
-      setMessages((prev) => {
-        if (prev.some((m) => m._id === msg._id)) return prev;
-        const newMsg: IMessage = {
-          _id: msg._id,
-          text: msg.text || '',
-          createdAt: new Date(msg.createdAt),
-          user: { _id: msg.user._id, name: msg.user.name },
-          image: msg.image,
-        };
-        return [newMsg, ...prev];
+      const unsubP = subscribeToPresence((_count, roomCounts) => {
+        if (!isMounted.current) return;
+        setPeerCount(roomCounts[room.id] || 0);
       });
-    });
+      unsubPresence.current = unsubP;
 
-    unsubMessages.current = unsub;
-    setIsInitialized(true);
+      const unsubM = subscribeToMessages(room.id, (msg) => {
+        if (!isMounted.current) return;
+        if (seenIds.current.has(msg._id)) return;
+        seenIds.current.add(msg._id);
+
+        setMessages((prev) => {
+          if (prev.some((m) => m._id === msg._id)) return prev;
+          return [
+            {
+              _id: msg._id,
+              text: msg.text || '',
+              createdAt: new Date(msg.createdAt),
+              user: { _id: msg.user._id, name: msg.user.name },
+              image: msg.image,
+            },
+            ...prev,
+          ];
+        });
+      });
+      unsubMessages.current = unsubM;
+
+      if (isMounted.current) {
+        setIsReady(true);
+      }
+    } catch (e) {
+      console.warn('[Hive:chat] initChat error:', e);
+      if (isMounted.current) {
+        setIsReady(true);
+      }
+    }
   };
+
+  const appendOptimistic = useCallback((msg: IMessage) => {
+    const id = msg._id as string;
+    if (seenIds.current.has(id)) return;
+    seenIds.current.add(id);
+    setMessages((prev) => [msg, ...prev]);
+  }, []);
 
   const onSend = useCallback(
     (newMessages: IMessage[] = []) => {
@@ -113,147 +149,160 @@ export default function ChatScreen({ navigation, route }: Props) {
     [room.id]
   );
 
-  const appendLocalMessage = (msg: IMessage) => {
-    if (seenIds.current.has(msg._id as string)) return;
-    seenIds.current.add(msg._id as string);
-    setMessages((prev) => [msg, ...prev]);
-  };
-
-  const handlePickImage = async () => {
-    try {
+  const pickAndSendImage = useCallback(
+    async (source: 'gallery' | 'camera') => {
       Keyboard.dismiss();
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      const permission =
+        source === 'gallery'
+          ? await ImagePicker.requestMediaLibraryPermissionsAsync()
+          : await ImagePicker.requestCameraPermissionsAsync();
+
       if (!permission.granted) {
-        Alert.alert('Permission required', 'Please allow access to your gallery.');
+        Alert.alert(
+          'Permission required',
+          source === 'gallery'
+            ? 'Please allow access to your gallery.'
+            : 'Please allow access to your camera.'
+        );
         return;
       }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        quality: 0.3,
-        allowsEditing: true,
-      });
-      if (result.canceled || !result.assets[0]) return;
 
+      const result =
+        source === 'gallery'
+          ? await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ['images'],
+              quality: 0.3,
+              allowsEditing: true,
+            })
+          : await ImagePicker.launchCameraAsync({
+              quality: 0.3,
+              allowsEditing: true,
+            });
+
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+
+      if (!isMounted.current) return;
       setSending(true);
-      const sent = await sendMediaMessage(room.id, result.assets[0].uri, 'image', {
-        _id: userIdRef.current,
-        name: userNameRef.current,
-      });
 
-      appendLocalMessage({
-        _id: sent._id,
-        text: '',
-        createdAt: new Date(sent.createdAt),
-        user: { _id: sent.user._id, name: sent.user.name },
-        image: sent.image,
-      });
-      setSending(false);
-    } catch (error: any) {
-      setSending(false);
-      Alert.alert('Error', error.message || 'Failed to send media');
-    }
-  };
+      try {
+        const sent = await sendMediaMessage(room.id, result.assets[0].uri, 'image', {
+          _id: userIdRef.current,
+          name: userNameRef.current,
+        });
 
-  const handleCamera = async () => {
-    try {
-      Keyboard.dismiss();
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert('Permission required', 'Please allow access to your camera.');
-        return;
+        if (isMounted.current) {
+          appendOptimistic({
+            _id: sent._id,
+            text: '',
+            createdAt: new Date(sent.createdAt),
+            user: { _id: sent.user._id, name: sent.user.name },
+            image: sent.image,
+          });
+        }
+      } catch (error: any) {
+        if (isMounted.current) {
+          Alert.alert('Error', error?.message || 'Failed to send image.');
+        }
+      } finally {
+        if (isMounted.current) setSending(false);
       }
-      const result = await ImagePicker.launchCameraAsync({
-        quality: 0.3,
-        allowsEditing: true,
-      });
-      if (result.canceled || !result.assets[0]) return;
-
-      setSending(true);
-      const sent = await sendMediaMessage(room.id, result.assets[0].uri, 'image', {
-        _id: userIdRef.current,
-        name: userNameRef.current,
-      });
-
-      appendLocalMessage({
-        _id: sent._id,
-        text: '',
-        createdAt: new Date(sent.createdAt),
-        user: { _id: sent.user._id, name: sent.user.name },
-        image: sent.image,
-      });
-      setSending(false);
-    } catch (error: any) {
-      setSending(false);
-      Alert.alert('Error', error.message || 'Failed to send photo');
-    }
-  };
-
-  const renderBubble = (props: any) => (
-    <Bubble
-      {...props}
-      wrapperStyle={{
-        right: {
-          backgroundColor: Colors.message.sent,
-          borderWidth: 1,
-          borderColor: Colors.message.sentBorder,
-          borderRadius: 16,
-          borderBottomRightRadius: 4,
-        },
-        left: {
-          backgroundColor: Colors.message.received,
-          borderWidth: 1,
-          borderColor: Colors.message.receivedBorder,
-          borderRadius: 16,
-          borderBottomLeftRadius: 4,
-        },
-      }}
-      textStyle={{
-        right: { color: Colors.text, ...Typography.body },
-        left: { color: Colors.text, ...Typography.body },
-      }}
-      usernameStyle={{ ...Typography.captionBold, color: Colors.primary }}
-    />
+    },
+    [room.id, appendOptimistic]
   );
 
-  const renderInputToolbar = (props: any) => (
-    <InputToolbar
-      {...props}
-      containerStyle={styles.inputToolbar}
-      primaryStyle={styles.inputPrimary}
-    />
+  const renderBubble = useCallback(
+    (props: any) => (
+      <Bubble
+        {...props}
+        wrapperStyle={{
+          right: {
+            backgroundColor: Colors.message.sent,
+            borderWidth: 1,
+            borderColor: Colors.message.sentBorder,
+            borderRadius: 16,
+            borderBottomRightRadius: 4,
+          },
+          left: {
+            backgroundColor: Colors.message.received,
+            borderWidth: 1,
+            borderColor: Colors.message.receivedBorder,
+            borderRadius: 16,
+            borderBottomLeftRadius: 4,
+          },
+        }}
+        textStyle={{
+          right: { color: Colors.text, ...Typography.body },
+          left: { color: Colors.text, ...Typography.body },
+        }}
+        usernameStyle={{ ...Typography.captionBold, color: Colors.primary }}
+      />
+    ),
+    []
   );
 
-  const renderComposer = (props: any) => (
-    <Composer
-      {...props}
-      textInputStyle={styles.composer}
-      placeholderTextColor={Colors.textMuted}
-      placeholder="Type a message..."
-    />
+  const renderInputToolbar = useCallback(
+    (props: any) => (
+      <InputToolbar
+        {...props}
+        containerStyle={styles.inputToolbar}
+        primaryStyle={styles.inputPrimary}
+      />
+    ),
+    []
   );
 
-  const renderSend = (props: any) => (
-    <Send {...props} containerStyle={styles.sendContainer}>
-      <View style={styles.sendButton}>
-        <Text style={styles.sendIcon}>▶</Text>
+  const renderComposer = useCallback(
+    (props: any) => (
+      <Composer
+        {...props}
+        textInputStyle={styles.composer}
+        placeholderTextColor={Colors.textMuted}
+        placeholder="Type a message..."
+      />
+    ),
+    []
+  );
+
+  const renderSend = useCallback(
+    (props: any) => (
+      <Send {...props} containerStyle={styles.sendContainer}>
+        <View style={styles.sendButton}>
+          <Text style={styles.sendIcon}>▶</Text>
+        </View>
+      </Send>
+    ),
+    []
+  );
+
+  const renderActions = useMemo(
+    () => () => (
+      <View style={styles.actionsContainer}>
+        <TouchableOpacity
+          onPress={() => pickAndSendImage('gallery')}
+          style={styles.actionBtn}
+          disabled={sending}
+        >
+          <Text style={styles.actionIcon}>🖼</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => pickAndSendImage('camera')}
+          style={styles.actionBtn}
+          disabled={sending}
+        >
+          <Text style={styles.actionIcon}>📷</Text>
+        </TouchableOpacity>
       </View>
-    </Send>
+    ),
+    [sending, pickAndSendImage]
   );
 
-  const renderActions = () => (
-    <View style={styles.actionsContainer}>
-      <TouchableOpacity onPress={handlePickImage} style={styles.actionBtn} disabled={sending}>
-        <Text style={styles.actionIcon}>🖼</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={handleCamera} style={styles.actionBtn} disabled={sending}>
-        <Text style={styles.actionIcon}>📷</Text>
-      </TouchableOpacity>
-    </View>
+  const renderChatEmpty = useCallback(() => <EmptyChat />, []);
+
+  const giftedUser = useMemo(
+    () => ({ _id: userIdRef.current || 'pending', name: userNameRef.current }),
+    [isReady]
   );
-
-  const renderChatEmpty = () => <EmptyChat />;
-
-  const currentUserId = userIdRef.current || '__init__';
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -277,25 +326,22 @@ export default function ChatScreen({ navigation, route }: Props) {
 
       {sending && (
         <View style={styles.sendingBar}>
-          <ActivityIndicator size="small" color={Colors.primary} style={{ marginRight: 8 }} />
+          <ActivityIndicator size="small" color={Colors.primary} style={styles.sendingSpinner} />
           <Text style={styles.sendingText}>Sending image P2P...</Text>
         </View>
       )}
 
-      {!isInitialized ? (
+      {!isReady ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Connecting to peers...</Text>
         </View>
       ) : (
         <GiftedChat
-          {...{
+          {...({
             messages,
             onSend: (msgs: IMessage[]) => onSend(msgs),
-            user: {
-              _id: currentUserId,
-              name: userNameRef.current,
-            },
+            user: giftedUser,
             renderBubble,
             renderInputToolbar,
             renderComposer,
@@ -317,7 +363,7 @@ export default function ChatScreen({ navigation, route }: Props) {
               style: { backgroundColor: Colors.background },
               keyboardDismissMode: 'interactive',
             },
-          } as any}
+          } as any)}
         />
       )}
     </View>
@@ -389,6 +435,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryGlow,
     paddingVertical: 6,
     paddingHorizontal: 16,
+  },
+  sendingSpinner: {
+    marginRight: 8,
   },
   sendingText: {
     ...Typography.small,
