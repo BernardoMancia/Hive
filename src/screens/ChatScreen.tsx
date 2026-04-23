@@ -109,14 +109,10 @@ export default function ChatScreen({ navigation, route }: Props) {
       });
       unsubMessages.current = unsubM;
 
-      if (isMounted.current) {
-        setIsReady(true);
-      }
+      if (isMounted.current) setIsReady(true);
     } catch (e) {
       console.warn('[Hive:chat] initChat error:', e);
-      if (isMounted.current) {
-        setIsReady(true);
-      }
+      if (isMounted.current) setIsReady(true);
     }
   };
 
@@ -140,7 +136,6 @@ export default function ChatScreen({ navigation, route }: Props) {
           createdAt: new Date(msg.createdAt).getTime(),
           user: { _id: uid, name: uname },
         });
-
         if (!success) {
           Alert.alert('Send failed', 'Message could not be sent. Check your connection.');
         }
@@ -181,16 +176,14 @@ export default function ChatScreen({ navigation, route }: Props) {
             });
 
       if (result.canceled || !result.assets?.[0]?.uri) return;
-
       if (!isMounted.current) return;
-      setSending(true);
 
+      setSending(true);
       try {
         const sent = await sendMediaMessage(room.id, result.assets[0].uri, 'image', {
           _id: userIdRef.current,
           name: userNameRef.current,
         });
-
         if (isMounted.current) {
           appendOptimistic({
             _id: sent._id,
@@ -220,15 +213,17 @@ export default function ChatScreen({ navigation, route }: Props) {
             backgroundColor: Colors.message.sent,
             borderWidth: 1,
             borderColor: Colors.message.sentBorder,
-            borderRadius: 16,
+            borderRadius: 18,
             borderBottomRightRadius: 4,
+            marginBottom: 2,
           },
           left: {
             backgroundColor: Colors.message.received,
             borderWidth: 1,
             borderColor: Colors.message.receivedBorder,
-            borderRadius: 16,
+            borderRadius: 18,
             borderBottomLeftRadius: 4,
+            marginBottom: 2,
           },
         }}
         textStyle={{
@@ -282,6 +277,7 @@ export default function ChatScreen({ navigation, route }: Props) {
           onPress={() => pickAndSendImage('gallery')}
           style={styles.actionBtn}
           disabled={sending}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Text style={styles.actionIcon}>🖼</Text>
         </TouchableOpacity>
@@ -289,6 +285,7 @@ export default function ChatScreen({ navigation, route }: Props) {
           onPress={() => pickAndSendImage('camera')}
           style={styles.actionBtn}
           disabled={sending}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Text style={styles.actionIcon}>📷</Text>
         </TouchableOpacity>
@@ -309,9 +306,14 @@ export default function ChatScreen({ navigation, route }: Props) {
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
+
         <View style={styles.headerInfo}>
           <Text style={styles.roomIcon}>{room.icon}</Text>
           <View style={styles.headerTexts}>
@@ -319,6 +321,7 @@ export default function ChatScreen({ navigation, route }: Props) {
             <Text style={styles.roomDesc} numberOfLines={1}>{room.description}</Text>
           </View>
         </View>
+
         <PeerStatus peerCount={peerCount} isConnected={connStatus === 'connected'} />
       </View>
 
@@ -356,12 +359,15 @@ export default function ChatScreen({ navigation, route }: Props) {
               right: { color: Colors.textMuted, ...Typography.small },
               left: { color: Colors.textMuted, ...Typography.small },
             },
-            bottomOffset: Platform.OS === 'ios' ? insets.bottom : 0,
-            minInputToolbarHeight: 60,
+            bottomOffset: insets.bottom,
+            minInputToolbarHeight: 64,
+            maxComposerHeight: 150,
             keyboardShouldPersistTaps: 'handled',
+            isKeyboardInternallyHandled: Platform.OS === 'ios',
             listViewProps: {
               style: { backgroundColor: Colors.background },
               keyboardDismissMode: 'interactive',
+              contentContainerStyle: { flexGrow: 1 },
             },
           } as any)}
         />
@@ -389,10 +395,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
-    gap: 8,
+    gap: 10,
   },
   backButton: {
     width: 40,
@@ -413,9 +419,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    minWidth: 0,
   },
   headerTexts: {
     flex: 1,
+    minWidth: 0,
   },
   roomIcon: {
     fontSize: 26,
@@ -433,7 +441,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.primaryGlow,
-    paddingVertical: 6,
+    paddingVertical: 7,
     paddingHorizontal: 16,
   },
   sendingSpinner: {
@@ -447,41 +455,43 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
-    paddingHorizontal: 6,
-    paddingTop: 6,
-    paddingBottom: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    minHeight: 64,
   },
   inputPrimary: {
     alignItems: 'center',
     flexDirection: 'row',
+    flex: 1,
   },
   composer: {
     color: Colors.text,
     backgroundColor: Colors.surfaceElevated,
-    borderRadius: 20,
-    paddingHorizontal: 14,
+    borderRadius: 22,
+    paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 10,
     marginLeft: 4,
     marginRight: 6,
-    minHeight: 42,
-    maxHeight: 120,
+    minHeight: 44,
+    maxHeight: 150,
     fontSize: 15,
     lineHeight: 20,
     borderWidth: 1,
     borderColor: Colors.border,
+    flex: 1,
   },
   sendContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    height: 44,
-    width: 44,
+    height: 46,
+    width: 46,
     marginRight: 2,
   },
   sendButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
@@ -494,9 +504,9 @@ const styles = StyleSheet.create({
   actionsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 44,
+    height: 46,
     gap: 4,
-    marginLeft: 2,
+    marginLeft: 4,
   },
   actionBtn: {
     width: 40,

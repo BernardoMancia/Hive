@@ -5,7 +5,7 @@ import { Typography } from '../theme/typography';
 
 export default function EmptyChat() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const scaleAnim = useRef(new Animated.Value(0.85)).current;
   const floatAnim = useRef(new Animated.Value(0)).current;
   const floatLoop = useRef<Animated.CompositeAnimation | null>(null);
 
@@ -13,12 +13,12 @@ export default function EmptyChat() {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 600,
+        duration: 700,
         useNativeDriver: true,
       }),
       Animated.spring(scaleAnim, {
         toValue: 1,
-        friction: 5,
+        friction: 6,
         tension: 40,
         useNativeDriver: true,
       }),
@@ -27,13 +27,13 @@ export default function EmptyChat() {
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(floatAnim, {
-          toValue: -8,
-          duration: 2000,
+          toValue: -10,
+          duration: 2200,
           useNativeDriver: true,
         }),
         Animated.timing(floatAnim, {
           toValue: 0,
-          duration: 2000,
+          duration: 2200,
           useNativeDriver: true,
         }),
       ])
@@ -47,44 +47,55 @@ export default function EmptyChat() {
   }, []);
 
   return (
-    <Animated.View
-      style={[
-        styles.container,
-        { opacity: fadeAnim, transform: [{ scale: scaleAnim }] },
-      ]}
-    >
-      <Animated.View style={{ transform: [{ translateY: floatAnim }] }}>
-        <Text style={styles.emoji}>🐝</Text>
+    <View style={styles.flipWrapper}>
+      <Animated.View
+        style={[
+          styles.container,
+          {
+            opacity: fadeAnim,
+            transform: [{ scale: scaleAnim }],
+          },
+        ]}
+      >
+        <Animated.View style={{ transform: [{ translateY: floatAnim }] }}>
+          <Text style={styles.emoji}>🐝</Text>
+        </Animated.View>
+
+        <Text style={styles.title}>The hive is quiet...</Text>
+        <Text style={styles.subtitle}>
+          {'Be the first to send a message\nand start the buzz!'}
+        </Text>
+
+        <View style={styles.hexRow}>
+          <Text style={styles.hexLeft}>⬡</Text>
+          <Text style={styles.hexCenter}>⬡</Text>
+          <Text style={styles.hexRight}>⬡</Text>
+        </View>
       </Animated.View>
-      <Text style={styles.title}>The hive is quiet...</Text>
-      <Text style={styles.subtitle}>
-        {'Be the first to send a message and\nstart the buzz!'}
-      </Text>
-      <View style={styles.hexRow}>
-        <Text style={styles.hex}>⬡</Text>
-        <Text style={[styles.hex, styles.hexMid]}>⬡</Text>
-        <Text style={styles.hex}>⬡</Text>
-      </View>
-    </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  flipWrapper: {
+    flex: 1,
+    transform: [{ scaleY: -1 }],
+  },
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
-    paddingBottom: 60,
+    paddingBottom: 40,
   },
   emoji: {
-    fontSize: 56,
-    marginBottom: 16,
+    fontSize: 60,
+    marginBottom: 20,
   },
   title: {
     ...Typography.h2,
     color: Colors.text,
-    marginBottom: 10,
+    marginBottom: 12,
     textAlign: 'center',
   },
   subtitle: {
@@ -92,21 +103,26 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     textAlign: 'center',
     lineHeight: 22,
-    marginBottom: 24,
+    marginBottom: 28,
   },
   hexRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
-  hex: {
-    fontSize: 18,
-    color: Colors.primaryGlow,
-    opacity: 0.4,
+  hexLeft: {
+    fontSize: 16,
+    color: Colors.textMuted,
+    opacity: 0.3,
   },
-  hexMid: {
+  hexCenter: {
     fontSize: 22,
     color: Colors.primary,
-    opacity: 0.6,
+    opacity: 0.5,
+  },
+  hexRight: {
+    fontSize: 16,
+    color: Colors.textMuted,
+    opacity: 0.3,
   },
 });
