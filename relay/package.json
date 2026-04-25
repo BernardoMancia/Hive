@@ -1,14 +1,16 @@
 {
   "name": "hive-relay",
   "version": "1.0.0",
-  "description": "GunDB relay — RAM only, zero persistence",
+  "description": "GunDB relay — RAM only, zero persistence, Telegram media forward",
   "main": "relay.js",
   "scripts": {
     "start": "node --max-old-space-size=128 relay.js",
     "pm2": "pm2 start relay.js --name hive-relay --max-memory-restart 150M --restart-delay 3000"
   },
   "dependencies": {
-    "gun": "^0.2020.1240"
+    "form-data": "^4.0.0",
+    "gun": "^0.2020.1240",
+    "node-fetch": "^2.7.0"
   },
   "engines": {
     "node": ">=20.0.0"

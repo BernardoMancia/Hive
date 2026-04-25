@@ -70,8 +70,8 @@ export async function sendMediaMessage(
     image: dataUri,
   };
 
-  const sent = sendMessage(roomId, messageData);
-  if (!sent) {
+  const success = await sendMessage(roomId, messageData);
+  if (!success) {
     throw new Error('Failed to send through the P2P network. Check your connection.');
   }
 

@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Hive — Admin Center</title>
+<script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gun/sea.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+  :root {
+    --bg: #050a12; --surface: rgba(15,25,40,0.7); --border: rgba(255,255,255,0.06);
+    --neon: #00d4ff; --neon2: #7c3aed; --green: #00ff88; --red: #ff4757;
+    --yellow: #ffd32a; --text: #e2e8f0; --muted: #64748b;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); min-height:100vh;
+    background-image: radial-gradient(ellipse at 20% 50%, rgba(0,212,255,0.05) 0%, transparent 60%),
+                      radial-gradient(ellipse at 80% 20%, rgba(124,58,237,0.05) 0%, transparent 60%); }
+
+  header { display:flex; align-items:center; justify-content:space-between; padding:20px 32px;
+    border-bottom:1px solid var(--border); backdrop-filter:blur(20px);
+    background:rgba(5,10,18,0.8); position:sticky; top:0; z-index:100; }
+  .logo { display:flex; align-items:center; gap:12px; }
+  .logo-icon { width:36px; height:36px; background:linear-gradient(135deg,var(--neon),var(--neon2));
+    border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; }
+  .logo h1 { font-size:18px; font-weight:700; letter-spacing:-0.5px; }
+  .logo span { font-size:11px; color:var(--muted); font-weight:400; display:block; }
+  .status-bar { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted); }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--green);
+    animation:pulse 2s infinite; box-shadow:0 0 8px var(--green); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  main { max-width:1400px; margin:0 auto; padding:32px; display:grid;
+    grid-template-columns:1fr 1fr; gap:24px; }
+  @media(max-width:900px){ main{ grid-template-columns:1fr; } }
+
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:16px;
+    padding:24px; backdrop-filter:blur(20px); position:relative; overflow:hidden; }
+  .card::before { content:''; position:absolute; top:0; left:0; right:0; height:1px;
+    background:linear-gradient(90deg,transparent,var(--neon),transparent); opacity:0.4; }
+  .card.full { grid-column:1/-1; }
+
+  .card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+  .card-title { font-size:14px; font-weight:600; color:var(--neon); text-transform:uppercase;
+    letter-spacing:1px; display:flex; align-items:center; gap:8px; }
+  .badge { background:rgba(0,212,255,0.15); color:var(--neon); padding:2px 10px;
+    border-radius:20px; font-size:11px; font-weight:600; border:1px solid rgba(0,212,255,0.3); }
+
+  .user-list { display:flex; flex-direction:column; gap:8px; max-height:400px; overflow-y:auto; }
+  .user-item { display:flex; align-items:center; gap:12px; padding:12px 14px;
+    background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:10px;
+    transition:all 0.2s; }
+  .user-item:hover { background:rgba(0,212,255,0.06); border-color:rgba(0,212,255,0.2); }
+  .avatar { width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg,var(--neon2),var(--neon));
+    display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; flex-shrink:0; }
+  .user-info { flex:1; min-width:0; }
+  .user-name { font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .user-room { font-size:11px; color:var(--muted); margin-top:2px; }
+  .user-time { font-size:11px; color:var(--muted); text-align:right; }
+  .online-dot { width:8px; height:8px; border-radius:50%; background:var(--green);
+    box-shadow:0 0 6px var(--green); flex-shrink:0; }
+
+  .room-list { display:flex; flex-direction:column; gap:8px; }
+  .room-item { display:flex; align-items:center; gap:12px; padding:12px 14px;
+    background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:10px;
+    transition:all 0.2s; }
+  .room-item:hover { background:rgba(124,58,237,0.06); border-color:rgba(124,58,237,0.2); }
+  .room-item.archived { opacity:0.5; }
+  .room-icon { font-size:20px; width:36px; text-align:center; flex-shrink:0; }
+  .room-info { flex:1; min-width:0; }
+  .room-name { font-size:13px; font-weight:600; }
+  .room-desc { font-size:11px; color:var(--muted); margin-top:2px; }
+  .room-actions { display:flex; gap:6px; }
+  .btn-icon { width:30px; height:30px; border-radius:8px; border:1px solid var(--border);
+    background:transparent; color:var(--muted); cursor:pointer; display:flex; align-items:center;
+    justify-content:center; font-size:14px; transition:all 0.2s; }
+  .btn-icon:hover { background:rgba(255,255,255,0.08); color:var(--text); }
+  .btn-icon.danger:hover { background:rgba(255,71,87,0.15); border-color:var(--red); color:var(--red); }
+  .btn-icon.success:hover { background:rgba(0,255,136,0.15); border-color:var(--green); color:var(--green); }
+
+  .form-row { display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+  input, select { background:rgba(255,255,255,0.05); border:1px solid var(--border);
+    color:var(--text); border-radius:8px; padding:8px 12px; font-size:13px; font-family:'Inter',sans-serif;
+    outline:none; transition:border 0.2s; }
+  input:focus, select:focus { border-color:var(--neon); }
+  input { flex:1; min-width:120px; }
+  .btn { padding:9px 18px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;
+    border:none; transition:all 0.2s; font-family:'Inter',sans-serif; }
+  .btn-primary { background:linear-gradient(135deg,var(--neon),var(--neon2)); color:#fff; }
+  .btn-primary:hover { opacity:0.9; transform:translateY(-1px); box-shadow:0 4px 20px rgba(0,212,255,0.3); }
+
+  .stats-row { display:flex; gap:16px; margin-bottom:20px; flex-wrap:wrap; }
+  .stat { flex:1; min-width:100px; background:rgba(255,255,255,0.03); border:1px solid var(--border);
+    border-radius:10px; padding:14px; text-align:center; }
+  .stat-value { font-size:28px; font-weight:700; color:var(--neon); }
+  .stat-label { font-size:11px; color:var(--muted); margin-top:4px; }
+
+  .activity-list { display:flex; flex-direction:column; gap:6px; max-height:200px; overflow-y:auto; }
+  .activity-item { display:flex; align-items:center; gap:10px; padding:8px 10px;
+    border-radius:8px; font-size:12px; background:rgba(255,255,255,0.02); }
+  .activity-icon { font-size:14px; flex-shrink:0; }
+  .activity-text { flex:1; color:var(--muted); }
+  .activity-text b { color:var(--text); }
+  .activity-time { color:var(--muted); font-size:11px; }
+
+  .empty { text-align:center; padding:32px; color:var(--muted); font-size:13px; }
+  .empty-icon { font-size:32px; margin-bottom:8px; }
+
+  ::-webkit-scrollbar { width:4px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🐝</div>
+    <div>
+      <h1>Hive Admin Center</h1>
+      <span>fogoeluar.com.br</span>
+    </div>
+  </div>
+  <div class="status-bar">
+    <div class="dot" id="conn-dot"></div>
+    <span id="conn-status">Conectando...</span>
+  </div>
+</header>
+
+<main>
+  <!-- Stats -->
+  <div class="card full">
+    <div class="stats-row">
+      <div class="stat">
+        <div class="stat-value" id="stat-online">0</div>
+        <div class="stat-label">Usuários Online</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="stat-rooms">0</div>
+        <div class="stat-label">Canais Ativos</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="stat-msgs">0</div>
+        <div class="stat-label">Msgs (sessão)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Usuários Online -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">👥 Usuários Online <span class="badge" id="badge-online">0</span></div>
+    </div>
+    <div class="user-list" id="user-list">
+      <div class="empty"><div class="empty-icon">📡</div>Aguardando conexão...</div>
+    </div>
+  </div>
+
+  <!-- Gerenciamento de Canais -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">💬 Gerenciar Canais <span class="badge" id="badge-rooms">0</span></div>
+    </div>
+    <div class="room-list" id="room-list">
+      <div class="empty"><div class="empty-icon">📋</div>Carregando canais...</div>
+    </div>
+    <div class="form-row">
+      <input id="new-room-id" type="text" placeholder="ID do canal (ex: cripto_br)"/>
+      <input id="new-room-name" type="text" placeholder="Nome"/>
+      <input id="new-room-icon" type="text" placeholder="Emoji" style="width:60px;flex:none"/>
+      <button class="btn btn-primary" onclick="createRoom()">+ Criar</button>
+    </div>
+  </div>
+
+  <!-- Log de Atividade -->
+  <div class="card full">
+    <div class="card-header">
+      <div class="card-title">📋 Atividade Recente</div>
+    </div>
+    <div class="activity-list" id="activity-list">
+      <div class="empty"><div class="empty-icon">🔍</div>Monitorando atividade...</div>
+    </div>
+  </div>
+</main>
+
+<script>
+const NAMESPACE = 'hive_v2';
+const RELAY = location.protocol.replace('http','ws') + '//' + location.host + '/gun';
+const users = {};
+const rooms = {};
+let msgCount = 0;
+let firstLoad = true;
+
+const gun = Gun({ peers: [RELAY], file: false, localStorage: false, radisk: false });
+
+gun.on('hi', () => {
+  document.getElementById('conn-dot').style.background = '#00ff88';
+  document.getElementById('conn-status').textContent = 'Conectado';
+});
+gun.on('bye', () => {
+  document.getElementById('conn-dot').style.background = '#ff4757';
+  document.getElementById('conn-status').textContent = 'Desconectado';
+});
+
+// ── Usuários Online ──────────────────────────────────────────────
+gun.get(NAMESPACE).get('presence').map().on((data, peerId) => {
+  if (!data || !data.name) {
+    delete users[peerId];
+  } else {
+    const age = Date.now() - (data.lastSeen || 0);
+    if (age > 90000) { delete users[peerId]; }
+    else { users[peerId] = data; }
+  }
+  renderUsers();
+});
+
+setInterval(() => {
+  Object.keys(users).forEach(id => {
+    const age = Date.now() - (users[id].lastSeen || 0);
+    if (age > 90000) delete users[id];
+  });
+  renderUsers();
+}, 15000);
+
+function renderUsers() {
+  const list = document.getElementById('user-list');
+  const count = Object.keys(users).length;
+  document.getElementById('stat-online').textContent = count;
+  document.getElementById('badge-online').textContent = count;
+  if (count === 0) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">🌙</div>Nenhum usuário online</div>';
+    return;
+  }
+  list.innerHTML = Object.entries(users).map(([id, u]) => {
+    const initial = (u.name || '?')[0].toUpperCase();
+    const mins = Math.floor((Date.now() - (u.lastSeen || 0)) / 60000);
+    const timeStr = mins === 0 ? 'agora' : `${mins}m atrás`;
+    return `<div class="user-item">
+      <div class="online-dot"></div>
+      <div class="avatar">${initial}</div>
+      <div class="user-info">
+        <div class="user-name">${esc(u.name)}</div>
+        <div class="user-room">📍 ${esc(u.roomId || 'lobby')}</div>
+      </div>
+      <div class="user-time">${timeStr}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Canais ──────────────────────────────────────────────────────
+const DEFAULT_ROOMS = [
+  {id:'crypto_geral', name:'Geral', icon:'💬', desc:'Canal geral', archived:false},
+  {id:'crypto_btc', name:'Bitcoin', icon:'₿', desc:'Bitcoin e Lightning', archived:false},
+  {id:'crypto_defi', name:'DeFi', icon:'🔗', desc:'DeFi e protocolos', archived:false},
+  {id:'crypto_nft', name:'NFTs', icon:'🎨', desc:'NFTs e arte digital', archived:false},
+];
+
+gun.get(NAMESPACE).get('admin').get('rooms').map().on((data, key) => {
+  if (data === null) { delete rooms[key]; }
+  else if (data && data.id) { rooms[key] = data; }
+  renderRooms();
+});
+
+setTimeout(() => {
+  if (firstLoad) {
+    firstLoad = false;
+    DEFAULT_ROOMS.forEach(r => { if (!rooms[r.id]) rooms[r.id] = r; });
+    renderRooms();
+  }
+}, 2000);
+
+function renderRooms() {
+  firstLoad = false;
+  const list = document.getElementById('room-list');
+  const all = Object.values(rooms);
+  const active = all.filter(r => !r.archived).length;
+  document.getElementById('stat-rooms').textContent = active;
+  document.getElementById('badge-rooms').textContent = all.length;
+  if (all.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">📋</div>Nenhum canal</div>';
+    return;
+  }
+  list.innerHTML = all.map(r => `
+    <div class="room-item ${r.archived ? 'archived' : ''}">
+      <div class="room-icon">${esc(r.icon || '💬')}</div>
+      <div class="room-info">
+        <div class="room-name">${esc(r.name)} <small style="color:var(--muted);font-size:10px">#${esc(r.id)}</small></div>
+        <div class="room-desc">${esc(r.desc || '')}</div>
+      </div>
+      <div class="room-actions">
+        <button class="btn-icon ${r.archived ? 'success' : 'danger'}" title="${r.archived ? 'Restaurar' : 'Arquivar'}"
+          onclick="toggleRoom('${r.id}', ${!r.archived})">${r.archived ? '♻️' : '🗄️'}</button>
+        <button class="btn-icon danger" title="Excluir" onclick="deleteRoom('${r.id}')">🗑️</button>
+      </div>
+    </div>`).join('');
+}
+
+function createRoom() {
+  const id = document.getElementById('new-room-id').value.trim().replace(/\s+/g,'_');
+  const name = document.getElementById('new-room-name').value.trim();
+  const icon = document.getElementById('new-room-icon').value.trim() || '💬';
+  if (!id || !name) return alert('Preencha ID e Nome');
+  const room = { id, name, icon, desc:'', archived:false, createdAt: Date.now() };
+  gun.get(NAMESPACE).get('admin').get('rooms').get(id).put(room);
+  rooms[id] = room;
+  document.getElementById('new-room-id').value = '';
+  document.getElementById('new-room-name').value = '';
+  document.getElementById('new-room-icon').value = '';
+  addActivity('🆕', `Canal <b>#${name}</b> criado`);
+  renderRooms();
+}
+
+function toggleRoom(id, archive) {
+  gun.get(NAMESPACE).get('admin').get('rooms').get(id).get('archived').put(archive);
+  if (rooms[id]) rooms[id].archived = archive;
+  addActivity(archive ? '🗄️' : '♻️', `Canal <b>#${id}</b> ${archive ? 'arquivado' : 'restaurado'}`);
+  renderRooms();
+}
+
+function deleteRoom(id) {
+  if (!confirm(`Excluir canal #${id}?`)) return;
+  gun.get(NAMESPACE).get('admin').get('rooms').get(id).put(null);
+  delete rooms[id];
+  addActivity('🗑️', `Canal <b>#${id}</b> excluído`);
+  renderRooms();
+}
+
+// ── Atividade Recente ────────────────────────────────────────────
+const activityLog = [];
+
+gun.get(NAMESPACE).get('rooms').map().map().on((data, key) => {
+  if (!data || !data.createdAt) return;
+  msgCount++;
+  document.getElementById('stat-msgs').textContent = msgCount;
+  let userName = 'Desconhecido';
+  try { const u = typeof data.user === 'string' ? JSON.parse(data.user) : data.user; userName = u?.name || userName; } catch(_){}
+  addActivity('💬', `<b>${esc(userName)}</b> enviou mensagem${data.image ? ' com mídia' : ''}`);
+});
+
+function addActivity(icon, text) {
+  const now = new Date().toLocaleTimeString('pt-BR');
+  activityLog.unshift({ icon, text, time: now });
+  if (activityLog.length > 50) activityLog.pop();
+  const list = document.getElementById('activity-list');
+  list.innerHTML = activityLog.map(a =>
+    `<div class="activity-item"><span class="activity-icon">${a.icon}</span><span class="activity-text">${a.text}</span><span class="activity-time">${a.time}</span></div>`
+  ).join('');
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
