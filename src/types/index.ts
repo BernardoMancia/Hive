@@ -46,6 +46,13 @@ export interface GunMessageData {
 
 export type ConnectionStatus = 'connected' | 'disconnected' | 'reconnecting';
 
+export interface KeyPair {
+  pub: string;
+  priv: string;
+  epub: string;
+  epriv: string;
+}
+
 export type RootStackParamList = {
   Welcome: undefined;
   Home: undefined;

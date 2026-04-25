@@ -1,29 +1,33 @@
-const Gun = require('gun');
-
-const COMMUNITY_RELAYS = [
-  'https://peer.wallie.io/gun',
-  'https://relay.peer.ooo/gun',
-];
+import Gun from 'gun';
+import 'gun/sea';
+import { encryptMessage, decryptMessage } from './crypto';
 
 export const NAMESPACE = 'hive_v2';
 
-const MAX_MESSAGES_PER_ROOM = 200;
-const RECONNECT_BASE_MS = 3000;
-const MAX_RECONNECT_ATTEMPTS = 8;
+const RELAY_PEERS = [
+  'wss://82.112.245.99/gun',
+  'wss://peer.wallie.io/gun',
+  'wss://relay.peer.ooo/gun',
+];
 
-type ConnectionStatus = 'connected' | 'disconnected' | 'reconnecting';
+export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting';
+
+type StatusListener = (status: ConnectionState) => void;
 
 let gunInstance: any = null;
 let isInitializing = false;
-let connectionStatus: ConnectionStatus = 'disconnected';
-let statusListeners: Array<(s: ConnectionStatus) => void> = [];
+let currentStatus: ConnectionState = 'disconnected';
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
 
-function notifyStatus(next: ConnectionStatus): void {
-  if (connectionStatus === next) return;
-  connectionStatus = next;
-  statusListeners.forEach((cb) => cb(next));
+const statusListeners = new Set<StatusListener>();
+
+function notifyStatus(status: ConnectionState): void {
+  if (status === currentStatus) return;
+  currentStatus = status;
+  statusListeners.forEach((fn) => {
+    try { fn(status); } catch (_) {}
+  });
 }
 
 function clearReconnectTimer(): void {
@@ -34,22 +38,12 @@ function clearReconnectTimer(): void {
 }
 
 function scheduleReconnect(): void {
-  if (reconnectTimer) return;
-  if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-    notifyStatus('disconnected');
-    return;
-  }
-
-  const delay = Math.min(
-    RECONNECT_BASE_MS * Math.pow(1.5, reconnectAttempts),
-    30000
-  );
+  clearReconnectTimer();
   reconnectAttempts++;
-  notifyStatus('reconnecting');
-
+  const delay = Math.min(3000 * Math.pow(1.5, reconnectAttempts - 1), 60000);
   reconnectTimer = setTimeout(() => {
-    reconnectTimer = null;
-    if (!gunInstance) {
+    if (gunInstance) {
+      notifyStatus('reconnecting');
       createGunInstance();
     }
   }, delay);
@@ -59,13 +53,18 @@ function createGunInstance(): void {
   if (isInitializing) return;
   isInitializing = true;
 
+  if (gunInstance) {
+    try { gunInstance.off(); } catch (_) {}
+    gunInstance = null;
+  }
+
   try {
-    const instance = Gun({
-      peers: COMMUNITY_RELAYS,
-      localStorage: false,
+    const instance = (Gun as any)({
+      peers: RELAY_PEERS,
       file: false,
+      localStorage: false,
       radisk: false,
-      retry: Infinity,
+      axe: false,
     });
 
     instance.on('hi', () => {
@@ -75,96 +74,81 @@ function createGunInstance(): void {
     });
 
     instance.on('bye', () => {
-      if (connectionStatus === 'connected') {
-        scheduleReconnect();
-      }
+      notifyStatus('disconnected');
+      scheduleReconnect();
     });
 
     gunInstance = instance;
+    notifyStatus('reconnecting');
   } catch (e) {
-    console.warn('[Hive:gun] Init failed, fallback:', e);
-    try {
-      gunInstance = Gun({ peers: COMMUNITY_RELAYS });
-    } catch (e2) {
-      console.warn('[Hive:gun] Fallback failed:', e2);
-      gunInstance = Gun({});
-      notifyStatus('disconnected');
-    }
+    console.warn('[Hive:gun] createGunInstance failed:', e);
+    notifyStatus('disconnected');
+    scheduleReconnect();
   } finally {
     isInitializing = false;
   }
 }
 
 export function getGun(): any {
-  if (!gunInstance) {
-    createGunInstance();
-  }
-  return gunInstance;
+  if (!gunInstance) createGunInstance();
+  return gunInstance!;
 }
 
 export function resetGun(): void {
   clearReconnectTimer();
   reconnectAttempts = 0;
-
-  if (gunInstance) {
-    try {
-      const peers = gunInstance._.opt?.peers || {};
-      Object.values(peers).forEach((peer: any) => {
-        try { peer?.wire?.close?.(); } catch (_) {}
-      });
-    } catch (_) {}
-    gunInstance = null;
-  }
-
-  createGunInstance();
+  isInitializing = false;
   notifyStatus('reconnecting');
+  createGunInstance();
 }
 
-export function onConnectionStatusChange(
-  cb: (status: ConnectionStatus) => void
-): () => void {
-  statusListeners.push(cb);
-  cb(connectionStatus);
-  return () => {
-    statusListeners = statusListeners.filter((l) => l !== cb);
-  };
+export function onConnectionStatusChange(listener: StatusListener): () => void {
+  statusListeners.add(listener);
+  listener(currentStatus);
+  return () => statusListeners.delete(listener);
 }
 
-export function getConnectionStatus(): ConnectionStatus {
-  return connectionStatus;
+export function getConnectionStatus(): ConnectionState {
+  return currentStatus;
 }
 
-export function sendMessage(
-  roomId: string,
-  message: {
-    _id: string;
-    text: string;
-    createdAt: number;
-    user: { _id: string; name: string };
-    image?: string;
-  }
-): boolean {
-  if (!message._id || !message.user._id) return false;
+createGunInstance();
 
+export interface MessageData {
+  _id: string;
+  text: string;
+  createdAt: number;
+  user: { _id: string; name: string };
+  image?: string;
+}
+
+export async function sendMessage(roomId: string, data: MessageData): Promise<boolean> {
   try {
-    const payload: Record<string, any> = {
-      _id: message._id,
-      text: message.text || '',
-      createdAt: message.createdAt,
-      userId: message.user._id,
-      userName: message.user.name || 'Anonymous',
-    };
+    const gun = getGun();
+    if (!gun) return false;
 
-    if (message.image) {
-      payload.image = message.image;
+    let encryptedText = '';
+    if (data.text) {
+      encryptedText = await encryptMessage(data.text, roomId);
     }
 
-    getGun()
+    const payload: Record<string, any> = {
+      _id: data._id,
+      text: encryptedText,
+      enc: '1',
+      createdAt: data.createdAt,
+      user: JSON.stringify(data.user),
+    };
+
+    if (data.image) {
+      payload.image = data.image;
+    }
+
+    gun
       .get(NAMESPACE)
       .get('rooms')
       .get(roomId)
-      .get('messages')
-      .get(message._id)
+      .get(data._id)
       .put(payload);
 
     return true;
@@ -176,55 +160,47 @@ export function sendMessage(
 
 export function subscribeToMessages(
   roomId: string,
-  callback: (message: {
-    _id: string;
-    text: string;
-    createdAt: number;
-    user: { _id: string; name: string };
-    image?: string;
-  }) => void
+  callback: (msg: MessageData) => void
 ): () => void {
-  const seenIds = new Set<string>();
   let active = true;
 
   try {
     const node = getGun()
       .get(NAMESPACE)
       .get('rooms')
-      .get(roomId)
-      .get('messages');
+      .get(roomId);
 
-    node.map().on((data: any) => {
+    node.map().on(async (data: any, key: string) => {
       if (!active) return;
-      if (!data?._id || !data?.userId) return;
-      if (seenIds.has(data._id)) return;
+      if (!data?._id || !data?.createdAt) return;
 
-      seenIds.add(data._id);
+      let text = data.text || '';
 
-      if (seenIds.size > MAX_MESSAGES_PER_ROOM) {
-        const oldest = seenIds.values().next().value;
-        if (oldest) seenIds.delete(oldest);
+      if (data.enc === '1' && text) {
+        const decrypted = await decryptMessage(text, roomId);
+        text = decrypted ?? '';
       }
+
+      let user: { _id: string; name: string } = { _id: 'unknown', name: 'Unknown' };
+      try {
+        user = typeof data.user === 'string' ? JSON.parse(data.user) : data.user;
+      } catch (_) {}
 
       callback({
         _id: data._id,
-        text: data.text || '',
-        createdAt: typeof data.createdAt === 'number' ? data.createdAt : Date.now(),
-        user: {
-          _id: data.userId,
-          name: data.userName || 'Anonymous',
-        },
-        image: data.image || undefined,
+        text,
+        createdAt: data.createdAt,
+        user,
+        image: data.image,
       });
     });
 
     return () => {
       active = false;
-      seenIds.clear();
       try { node.map().off(); } catch (_) {}
     };
   } catch (e) {
     console.warn('[Hive:gun] subscribeToMessages error:', e);
-    return () => {};
+    return () => { active = false; };
   }
 }

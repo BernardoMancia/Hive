@@ -129,20 +129,21 @@ export default function ChatScreen({ navigation, route }: Props) {
       const uname = userNameRef.current;
       if (!uid) return;
 
-      newMessages.forEach((msg) => {
-        const success = sendMessage(room.id, {
+      newMessages.forEach(async (msg) => {
+        const success = await sendMessage(room.id, {
           _id: msg._id as string,
           text: msg.text,
           createdAt: new Date(msg.createdAt).getTime(),
           user: { _id: uid, name: uname },
         });
-        if (!success) {
+        if (!success && isMounted.current) {
           Alert.alert('Send failed', 'Message could not be sent. Check your connection.');
         }
       });
     },
     [room.id]
   );
+
 
   const pickAndSendImage = useCallback(
     async (source: 'gallery' | 'camera') => {
