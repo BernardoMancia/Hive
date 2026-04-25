@@ -88,25 +88,32 @@ export default function ChatScreen({ navigation, route }: Props) {
       });
       unsubPresence.current = unsubP;
 
-      const unsubM = subscribeToMessages(room.id, (msg) => {
-        if (!isMounted.current) return;
-        if (seenIds.current.has(msg._id)) return;
-        seenIds.current.add(msg._id);
-
-        setMessages((prev) => {
-          if (prev.some((m) => m._id === msg._id)) return prev;
-          return [
-            {
-              _id: msg._id,
-              text: msg.text || '',
-              createdAt: new Date(msg.createdAt),
-              user: { _id: msg.user._id, name: msg.user.name },
-              image: msg.image,
-            },
-            ...prev,
-          ];
-        });
-      });
+      const unsubM = subscribeToMessages(
+        room.id,
+        (msg) => {
+          if (!isMounted.current) return;
+          if (seenIds.current.has(msg._id)) return;
+          seenIds.current.add(msg._id);
+          setMessages((prev) => {
+            if (prev.some((m) => m._id === msg._id)) return prev;
+            return [
+              {
+                _id: msg._id,
+                text: msg.text || '',
+                createdAt: new Date(msg.createdAt),
+                user: { _id: msg.user._id, name: msg.user.name },
+                image: msg.image,
+              },
+              ...prev,
+            ];
+          });
+        },
+        (deletedId) => {
+          if (!isMounted.current) return;
+          seenIds.current.delete(deletedId);
+          setMessages((prev) => prev.filter((m) => m._id !== deletedId));
+        }
+      );
       unsubMessages.current = unsubM;
 
       if (isMounted.current) setIsReady(true);
