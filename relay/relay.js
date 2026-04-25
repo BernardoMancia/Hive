@@ -3,89 +3,133 @@
 require('gun/sea');
 const Gun      = require('gun');
 const http     = require('http');
+const fs       = require('fs');
+const path     = require('path');
 const fetch    = require('node-fetch');
 const FormData = require('form-data');
 
 process.env.GUN_ENV = 'false';
 
-const NAMESPACE = 'hive_v2';
-const TTL_MS    = 60 * 60 * 1000;
+const NAMESPACE   = 'hive_v2';
+const TTL_MS      = 24 * 60 * 60 * 1000; // 24h desde createdAt
+const MAX_MSG_AGE = 60 * 1000;            // só envia ao Telegram se < 60s
 
 const TG_TOKEN    = process.env.TG_TOKEN    || '';
 const TG_GROUP_ID = process.env.TG_GROUP_ID || '';
-
-const ADMIN_IDS = (process.env.TG_ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
-
-const stats = { messages: 0, media: 0, started: Date.now() };
-
-const fs = require('fs');
-const path = require('path');
+const ADMIN_IDS   = (process.env.TG_ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 
 const ADMIN_HTML = path.join(__dirname, 'admin', 'index.html');
 
+const stats = { messages: 0, media: 0, started: Date.now() };
+
+// TTL timers (msgKey -> timeoutId)
+const scheduled   = new Map();
+// Telegram dedup (msgKey set — separado de scheduled)
+const tgSeen      = new Set();
+// Tracker de mensagens por sala para /clearchat
+const msgTracker  = {};
+
+// Controles de servidor
+let maintenanceMode  = false;
+let messagingPaused  = false;
+
+// ── HTTP Server ───────────────────────────────────────────────────
 const server = http.createServer((req, res) => {
   const url = req.url.split('?')[0];
 
+  res.setHeader('Access-Control-Allow-Origin', '*');
+
   if (url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-    res.end(JSON.stringify({
-      status: 'ok',
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({
+      status: maintenanceMode ? 'maintenance' : 'ok',
       uptime: Math.floor(process.uptime()),
-      memory: `${Math.round(process.memoryUsage().rss / 1024 / 1024)}MB`,
       memoryRaw: Math.round(process.memoryUsage().rss / 1024 / 1024),
       heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-      persistence: 'none',
-      ttl: '1h',
+      memory: `${Math.round(process.memoryUsage().rss / 1024 / 1024)}MB`,
+      persistence: 'none', ttl: '24h',
       telegram: TG_TOKEN ? 'configured' : 'disabled',
       tracked: scheduled.size,
+      maintenanceMode, messagingPaused,
       stats,
     }));
-    return;
   }
 
   if (url === '/admin' || url === '/admin/') {
     try {
       const html = fs.readFileSync(ADMIN_HTML, 'utf8');
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
-      res.end(html);
+      return res.end(html);
     } catch (_) {
       res.writeHead(404);
-      res.end('Admin panel not found');
+      return res.end('Admin panel not found');
     }
-    return;
+  }
+
+  if (maintenanceMode && url !== '/health') {
+    res.writeHead(503, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ status: 'maintenance', message: 'Relay em manutenção' }));
   }
 
   res.writeHead(200);
-  res.end('Hive Relay | RAM only | E2E | TTL 1h');
+  res.end('Hive Relay | RAM only | E2E | TTL 24h');
 });
 
-
+// ── Gun ──────────────────────────────────────────────────────────
 const gun = Gun({
   web: server,
-  file: false,
-  localStorage: false,
-  radisk: false,
-  multicast: false,
-  axe: false,
+  file: false, localStorage: false, radisk: false,
+  multicast: false, axe: false,
 });
 
-const scheduled = new Set();
+// Admin control listener (escrita pelo painel web)
+let lastClearTs = 0;
+gun.get(NAMESPACE).get('admin').get('ctrl').on((data) => {
+  if (!data) return;
+  maintenanceMode  = !!data.maintenance;
+  messagingPaused  = !!data.pauseMessaging;
 
+  // clearChat: disparado pelo painel web
+  const clearTs = Number(data.clearChat) || 0;
+  if (clearTs && clearTs !== lastClearTs) {
+    lastClearTs = clearTs;
+    let total = 0;
+    for (const [roomId, keys] of Object.entries(msgTracker)) {
+      for (const msgKey of Object.keys(keys)) {
+        gun.get(NAMESPACE).get('rooms').get(roomId).get(msgKey).put(null);
+        const tid = scheduled.get(msgKey);
+        if (tid) { clearTimeout(tid); scheduled.delete(msgKey); }
+        total++;
+      }
+    }
+    Object.keys(msgTracker).forEach(k => delete msgTracker[k]);
+    tgSeen.clear();
+    console.log(`[Admin] clearChat: ${total} mensagens removidas`);
+    if (TG_GROUP_ID) tgSend(TG_GROUP_ID, `🗑 *Chat limpo via painel web*\n${total} mensagens removidas.`);
+  }
+
+  console.log(`[Ctrl] maintenance=${maintenanceMode} pauseMsg=${messagingPaused}`);
+});
+
+
+// ── TTL ──────────────────────────────────────────────────────────
 function scheduleExpiry(roomId, msgKey, createdAt) {
   if (scheduled.has(msgKey)) return;
-  const ts = Number(createdAt);
+  const ts    = Number(createdAt);
   if (!ts || isNaN(ts)) return;
   const delay = Math.max(2000, ts + TTL_MS - Date.now());
-  setTimeout(() => {
+  const tid   = setTimeout(() => {
     gun.get(NAMESPACE).get('rooms').get(roomId).get(msgKey).put(null);
     scheduled.delete(msgKey);
+    if (msgTracker[roomId]) delete msgTracker[roomId][msgKey];
     console.log(`[TTL] expired room=${roomId} key=${msgKey}`);
   }, delay);
-  scheduled.add(msgKey);
+  scheduled.set(msgKey, tid);
 }
 
+// ── Telegram helpers ─────────────────────────────────────────────
 async function tgSend(chatId, text, extra = {}) {
-  if (!TG_TOKEN) return;
+  if (!TG_TOKEN || !chatId) return;
   try {
     await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
       method: 'POST',
@@ -99,104 +143,187 @@ async function tgSend(chatId, text, extra = {}) {
 async function sendMediaToTelegram(imageData, userName, roomId, createdAt) {
   if (!TG_TOKEN || !TG_GROUP_ID || !imageData) return;
   try {
-    const dt = new Date(Number(createdAt)).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const dt      = new Date(Number(createdAt)).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
     const caption = `📸 *Mídia enviada*\n👤 *De:* ${userName}\n💬 *Canal:* ${roomId}\n🕐 ${dt}`;
-    const base64 = imageData.replace(/^data:image\/\w+;base64,/, '');
-    const buffer = Buffer.from(base64, 'base64');
-    const form = new FormData();
+    const base64  = imageData.replace(/^data:image\/\w+;base64,/, '');
+    const buffer  = Buffer.from(base64, 'base64');
+    const form    = new FormData();
     form.append('chat_id', TG_GROUP_ID);
     form.append('caption', caption);
     form.append('parse_mode', 'Markdown');
     form.append('photo', buffer, { filename: 'hive_media.jpg', contentType: 'image/jpeg' });
-    const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
+    const res  = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
       method: 'POST', body: form, headers: form.getHeaders(), timeout: 15000,
     });
     const json = await res.json();
-    if (!json.ok) console.warn('[Telegram] API error:', json.description);
-    else { console.log(`[Telegram] Media from ${userName} in ${roomId}`); stats.media++; }
-  } catch (e) {
-    console.warn('[Telegram] sendPhoto failed:', e.message);
-  }
+    if (json.ok) { stats.media++; console.log(`[TG] media from ${userName} in ${roomId}`); }
+    else console.warn('[TG] sendPhoto error:', json.description);
+  } catch (e) { console.warn('[TG] sendPhoto failed:', e.message); }
 }
 
 function formatUptime(ms) {
-  const s = Math.floor(ms / 1000);
-  const m = Math.floor(s / 60);
-  const h = Math.floor(m / 60);
-  const d = Math.floor(h / 24);
+  const s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60), d = Math.floor(h / 24);
   if (d > 0) return `${d}d ${h % 24}h ${m % 60}m`;
   if (h > 0) return `${h}h ${m % 60}m`;
   return `${m}m ${s % 60}s`;
 }
 
+// ── Bot command handler ──────────────────────────────────────────
 async function handleBotCommand(msg) {
   const chatId = msg.chat?.id;
   const userId = String(msg.from?.id || '');
   const text   = (msg.text || '').trim();
 
   const isAdmin = ADMIN_IDS.length === 0 || ADMIN_IDS.includes(userId);
-  if (!isAdmin) {
-    await tgSend(chatId, '⛔ Acesso negado.');
-    return;
-  }
+  if (!isAdmin) { await tgSend(chatId, '⛔ Acesso negado.'); return; }
 
   const uptime = formatUptime(Date.now() - stats.started);
   const mem    = Math.round(process.memoryUsage().rss / 1024 / 1024);
 
-  if (text === '/start' || text === '/menu') {
+  if (text.startsWith('/start') || text.startsWith('/menu') || text === '📋 Menu') {
     await tgSend(chatId,
       `🐝 *Hive Relay — Painel de Controle*\n\n` +
-      `Escolha um comando:\n\n` +
-      `/status — Status do servidor\n` +
-      `/stats — Estatísticas de mensagens\n` +
-      `/uptime — Tempo online\n` +
-      `/memory — Uso de memória\n` +
-      `/clear — Limpar timers expirados`,
+      `📡 *Status:* ${maintenanceMode ? '🔴 Manutenção' : messagingPaused ? '⏸ Msgs pausadas' : '🟢 Online'}\n` +
+      `⏱ *Uptime:* ${uptime}\n💾 *RAM:* ${mem} MB\n\n` +
+      `Escolha uma opção:`,
       {
         reply_markup: JSON.stringify({
           keyboard: [
-            [{ text: '📊 /status' }, { text: '📈 /stats' }],
-            [{ text: '⏱ /uptime' }, { text: '💾 /memory' }],
-            [{ text: '🗑 /clear' }],
+            [{ text: '📊 Status' }, { text: '📈 Stats' }],
+            [{ text: '⏱ Uptime' }, { text: '💾 Memória' }],
+            [{ text: messagingPaused ? '▶️ Retomar Msgs' : '⏸ Pausar Msgs' }, { text: maintenanceMode ? '🟢 Desativar Manutenção' : '🔴 Ativar Manutenção' }],
+            [{ text: '🗑 Limpar Chat' }],
           ],
-          resize_keyboard: true,
-          persistent: true,
+          resize_keyboard: true, persistent: true,
         }),
       }
     );
-  } else if (text.includes('/status') || text.includes('📊')) {
+    return;
+  }
+
+  if (text.includes('/status') || text.includes('📊 Status')) {
     await tgSend(chatId,
       `📊 *Status do Relay*\n\n` +
-      `🟢 *Online:* ${uptime}\n` +
+      `Status: ${maintenanceMode ? '🔴 Manutenção' : messagingPaused ? '⏸ Pausado' : '🟢 Online'}\n` +
+      `⏱ *Uptime:* ${uptime}\n` +
       `💾 *RAM:* ${mem} MB\n` +
-      `⏱ *TTL timers ativos:* ${scheduled.size}\n` +
+      `⏳ *TTL timers:* ${scheduled.size}\n` +
       `📡 *Endpoint:* \`0.0.0.0:8765\`\n` +
-      `🔐 *Persistência:* Nenhuma (RAM only)\n` +
       `📲 *Telegram:* ${TG_TOKEN ? '✅ ON' : '❌ OFF'}`
     );
-  } else if (text.includes('/stats') || text.includes('📈')) {
+    return;
+  }
+
+  if (text.includes('/stats') || text.includes('📈 Stats')) {
     await tgSend(chatId,
-      `📈 *Estatísticas da Sessão*\n\n` +
-      `💬 *Mensagens processadas:* ${stats.messages}\n` +
-      `📸 *Mídias encaminhadas:* ${stats.media}\n` +
-      `⏱ *Online há:* ${uptime}`
+      `📈 *Estatísticas*\n\n` +
+      `💬 Mensagens: ${stats.messages}\n` +
+      `📸 Mídias: ${stats.media}\n` +
+      `⏱ Online há: ${uptime}`
     );
-  } else if (text.includes('/uptime') || text.includes('⏱')) {
+    return;
+  }
+
+  if (text.includes('/uptime') || text.includes('⏱ Uptime')) {
     await tgSend(chatId, `⏱ *Uptime:* ${uptime}`);
-  } else if (text.includes('/memory') || text.includes('💾')) {
+    return;
+  }
+
+  if (text.includes('/memory') || text.includes('/mem') || text.includes('💾 Memória')) {
     const full = process.memoryUsage();
     await tgSend(chatId,
-      `💾 *Uso de Memória*\n\n` +
-      `RSS: \`${Math.round(full.rss / 1024 / 1024)} MB\`\n` +
-      `Heap usado: \`${Math.round(full.heapUsed / 1024 / 1024)} MB\`\n` +
-      `Heap total: \`${Math.round(full.heapTotal / 1024 / 1024)} MB\``
+      `💾 *Memória*\n\nRSS: \`${Math.round(full.rss/1024/1024)} MB\`\n` +
+      `Heap usado: \`${Math.round(full.heapUsed/1024/1024)} MB\`\n` +
+      `Heap total: \`${Math.round(full.heapTotal/1024/1024)} MB\``
     );
-  } else if (text.includes('/clear') || text.includes('🗑')) {
-    const before = scheduled.size;
-    await tgSend(chatId, `🗑 *Limpeza concluída*\n${before} timers monitorados.`);
+    return;
+  }
+
+  if (text.includes('⏸ Pausar Msgs') || text.includes('/pausemsgs')) {
+    messagingPaused = true;
+    gun.get(NAMESPACE).get('admin').get('ctrl').get('pauseMessaging').put(true);
+    await tgSend(chatId, '⏸ *Troca de mensagens pausada.*\nNovos dados não serão processados.');
+    await sendMenu(chatId);
+    return;
+  }
+
+  if (text.includes('▶️ Retomar Msgs') || text.includes('/resumemsgs')) {
+    messagingPaused = false;
+    gun.get(NAMESPACE).get('admin').get('ctrl').get('pauseMessaging').put(false);
+    await tgSend(chatId, '▶️ *Mensagens retomadas.*');
+    await sendMenu(chatId);
+    return;
+  }
+
+  if (text.includes('🔴 Ativar Manutenção') || text.includes('/maintenance')) {
+    maintenanceMode = true;
+    gun.get(NAMESPACE).get('admin').get('ctrl').get('maintenance').put(true);
+    await tgSend(chatId, '🔴 *Modo manutenção ativado.*\nRelay retorna 503 para clientes.');
+    await sendMenu(chatId);
+    return;
+  }
+
+  if (text.includes('🟢 Desativar Manutenção') || text.includes('/resume')) {
+    maintenanceMode = false;
+    gun.get(NAMESPACE).get('admin').get('ctrl').get('maintenance').put(false);
+    await tgSend(chatId, '🟢 *Relay voltou ao ar.*');
+    await sendMenu(chatId);
+    return;
+  }
+
+  if (text.includes('🗑 Limpar Chat') || text.includes('/clearchat')) {
+    let total = 0;
+    for (const [roomId, keys] of Object.entries(msgTracker)) {
+      for (const msgKey of Object.keys(keys)) {
+        gun.get(NAMESPACE).get('rooms').get(roomId).get(msgKey).put(null);
+        const tid = scheduled.get(msgKey);
+        if (tid) { clearTimeout(tid); scheduled.delete(msgKey); }
+        total++;
+      }
+    }
+    Object.keys(msgTracker).forEach(k => delete msgTracker[k]);
+    tgSeen.clear();
+    await tgSend(chatId, `🗑 *Chat limpo!*\n${total} mensagem(ns) removidas de todos os canais.`);
+    return;
   }
 }
 
+async function sendMenu(chatId) {
+  await tgSend(chatId, '📋 Use /menu para ver os controles atualizados.');
+}
+
+// ── Gun message listener ─────────────────────────────────────────
+gun.get(NAMESPACE).get('rooms').map().on((_roomData, roomId) => {
+  if (!roomId || typeof roomId !== 'string') return;
+  gun.get(NAMESPACE).get('rooms').get(roomId).map().on((msgData, msgKey) => {
+    if (!msgData || !msgKey || !msgData.createdAt) return;
+    if (messagingPaused) return;
+
+    scheduleExpiry(roomId, msgKey, msgData.createdAt);
+
+    // Tracker para /clearchat
+    if (!msgTracker[roomId]) msgTracker[roomId] = {};
+    msgTracker[roomId][msgKey] = true;
+
+    stats.messages++;
+
+    // Telegram: apenas imagens novas (< 60s) e não duplicadas
+    if (msgData.image && !tgSeen.has(msgKey)) {
+      tgSeen.add(msgKey);
+      const age = Date.now() - Number(msgData.createdAt);
+      if (age < MAX_MSG_AGE) {
+        let userName = 'Desconhecido';
+        try {
+          const u = typeof msgData.user === 'string' ? JSON.parse(msgData.user) : msgData.user;
+          userName = u?.name || userName;
+        } catch (_) {}
+        sendMediaToTelegram(msgData.image, userName, roomId, msgData.createdAt);
+      }
+    }
+  });
+});
+
+// ── Bot polling ──────────────────────────────────────────────────
 let pollOffset = 0;
 async function pollUpdates() {
   if (!TG_TOKEN) return;
@@ -224,62 +351,46 @@ async function setupBotMenu() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         commands: [
-          { command: 'start',  description: 'Abrir menu de controle' },
-          { command: 'menu',   description: 'Menu principal' },
-          { command: 'status', description: 'Status do relay' },
-          { command: 'stats',  description: 'Estatísticas de mensagens' },
-          { command: 'uptime', description: 'Tempo online' },
-          { command: 'memory', description: 'Uso de memória' },
-          { command: 'clear',  description: 'Limpar timers' },
+          { command: 'menu',       description: 'Menu principal' },
+          { command: 'status',     description: 'Status do relay' },
+          { command: 'stats',      description: 'Estatísticas' },
+          { command: 'uptime',     description: 'Tempo online' },
+          { command: 'memory',     description: 'Uso de memória' },
+          { command: 'clearchat',  description: 'Limpar todos os chats' },
+          { command: 'pausemsgs',  description: 'Pausar troca de mensagens' },
+          { command: 'resumemsgs', description: 'Retomar mensagens' },
+          { command: 'maintenance',description: 'Ativar modo manutenção' },
+          { command: 'resume',     description: 'Desativar manutenção' },
         ],
       }),
       timeout: 10000,
     });
-    console.log('[Telegram] Bot menu configured');
+    console.log('[TG] Bot menu configured');
 
     if (TG_GROUP_ID) {
       const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
       await tgSend(TG_GROUP_ID,
-        `🟢 *Hive Relay iniciado*\n\n` +
-        `🕐 *Horário:* ${now}\n` +
-        `📡 *Porta:* \`8765\`\n` +
-        `🔐 *Modo:* RAM only | E2E | TTL 1h\n` +
-        `📲 *Telegram:* ativo\n\n` +
-        `Use /menu para monitorar o relay.`
+        `🟢 *Hive Relay iniciado*\n\n🕐 ${now}\n📡 Porta: \`8765\`\n🔐 RAM only | E2E | TTL 24h\n\nUse /menu para monitorar.`
       );
     }
   } catch (_) {}
 }
 
-gun.get(NAMESPACE).get('rooms').map().on((_roomData, roomId) => {
-  if (!roomId || typeof roomId !== 'string') return;
-  gun.get(NAMESPACE).get('rooms').get(roomId).map().on((msgData, msgKey) => {
-    if (!msgData || !msgKey || !msgData.createdAt) return;
-    stats.messages++;
-    scheduleExpiry(roomId, msgKey, msgData.createdAt);
-    if (msgData.image && !scheduled.has(`tg_${msgKey}`)) {
-      scheduled.add(`tg_${msgKey}`);
-      let userName = 'Desconhecido';
-      try { const u = typeof msgData.user === 'string' ? JSON.parse(msgData.user) : msgData.user; userName = u?.name || userName; } catch (_) {}
-      sendMediaToTelegram(msgData.image, userName, roomId, msgData.createdAt);
-    }
-  });
-});
-
+// ── Start ────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '8765', 10);
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[Hive Relay] 0.0.0.0:${PORT} | RAM | E2E | TTL 1h | Telegram:${TG_TOKEN ? 'ON' : 'OFF'}`);
+  console.log(`[Hive Relay] 0.0.0.0:${PORT} | RAM | E2E | TTL 24h | TG:${TG_TOKEN ? 'ON' : 'OFF'}`);
   setupBotMenu();
   pollUpdates();
 });
 
-['SIGINT', 'SIGTERM'].forEach((sig) => {
+['SIGINT', 'SIGTERM'].forEach(sig => {
   process.on(sig, () => {
-    scheduled.forEach(t => { if (typeof t === 'object') clearTimeout(t); });
+    scheduled.forEach(tid => clearTimeout(tid));
     server.close(() => process.exit(0));
   });
 });
 
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', err => {
   console.error('[Hive Relay] uncaughtException:', err.message);
 });

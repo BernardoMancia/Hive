@@ -138,12 +138,20 @@ export default function ChatScreen({ navigation, route }: Props) {
     seenIds.current.add(tempId);
     setMessages(prev => [optimistic, ...prev]);
 
-    const ok = await sendMessage(room.id, { _id: tempId, text, createdAt: ts, user: { _id: uid, name: uname } });
+    let ok = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      ok = await sendMessage(room.id, { _id: tempId, text, createdAt: ts, user: { _id: uid, name: uname } });
+      if (ok) break;
+      await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
+    }
+
     if (isMounted.current) {
       if (ok) {
         setMessages(prev => prev.map(m => m._id === tempId ? { ...m, pending: false, sent: true } : m));
       } else {
-        Alert.alert('Falha', 'Mensagem não enviada. Verifique sua conexão.');
+        setMessages(prev => prev.filter(m => m._id !== tempId));
+        seenIds.current.delete(tempId);
+        Alert.alert('Falha no envio', 'Não foi possível enviar. Verifique a conexão e tente novamente.');
       }
     }
   }, [inputText, room.id]);
@@ -273,16 +281,17 @@ export default function ChatScreen({ navigation, route }: Props) {
               <Text style={s.mediaIcon}>📷</Text>
             </TouchableOpacity>
             <TextInput
-              style={s.input}
+              style={[s.input, !isConnected && { borderColor: Colors.red + '44' }]}
               value={inputText}
               onChangeText={setInputText}
-              placeholder="Mensagem..."
-              placeholderTextColor={Colors.textMuted}
+              placeholder={isConnected ? 'Mensagem...' : '⚠ Sem conexão...'}
+              placeholderTextColor={isConnected ? Colors.textMuted : Colors.red + '88'}
               multiline
               maxLength={2000}
               returnKeyType="default"
               blurOnSubmit={false}
             />
+
             <TouchableOpacity
               style={[s.sendBtn, !inputText.trim() && s.sendBtnDisabled]}
               onPress={handleSend}

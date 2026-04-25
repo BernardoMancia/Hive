@@ -231,6 +231,20 @@
     </div>
   </div>
 
+  <!-- Server Controls -->
+  <div class="card red">
+    <div class="card-header">
+      <div class="card-title">⚙️ Controles do Servidor</div>
+      <span id="ctrl-sync" style="font-size:11px;color:var(--muted)">sincronizado</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px">
+      <button id="btn-maintenance" class="btn" style="flex:1;min-width:160px" onclick="toggleMaintenance()">🔴 Modo Manutenção</button>
+      <button id="btn-pause" class="btn" style="flex:1;min-width:160px" onclick="togglePause()">⏸ Pausar Mensagens</button>
+      <button class="btn" style="flex:1;min-width:160px;background:rgba(255,71,87,.8)" onclick="clearAllChats()">🗑 Limpar Chat</button>
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin-top:12px">Manutenção retorna 503. Pausar impede processamento de novas mensagens.</p>
+  </div>
+
   <!-- Usuários Online -->
   <div class="card">
     <div class="card-header">
@@ -275,6 +289,8 @@ const HOST = location.hostname + ':' + (location.port || '8765');
 const RELAY_WS = 'ws://' + HOST + '/gun';
 const HEALTH_URL = 'http://' + HOST + '/health';
 
+let ctrlState = { maintenance: false, pauseMessaging: false };
+
 document.getElementById('relay-host').textContent = HOST;
 
 const users = {};
@@ -304,6 +320,35 @@ function formatUptime(s) {
   return m + 'm ' + (s % 60) + 's';
 }
 
+function toggleMaintenance() {
+  ctrlState.maintenance = !ctrlState.maintenance;
+  gun.get('hive_v2').get('admin').get('ctrl').get('maintenance').put(ctrlState.maintenance);
+  updateCtrlButtons();
+  addActivity(ctrlState.maintenance ? '🔴' : '🟢', ctrlState.maintenance ? 'Modo manutenção <b>ativado</b>' : 'Manutenção <b>desativada</b>');
+}
+
+function togglePause() {
+  ctrlState.pauseMessaging = !ctrlState.pauseMessaging;
+  gun.get('hive_v2').get('admin').get('ctrl').get('pauseMessaging').put(ctrlState.pauseMessaging);
+  updateCtrlButtons();
+  addActivity(ctrlState.pauseMessaging ? '⏸' : '▶️', ctrlState.pauseMessaging ? 'Mensagens <b>pausadas</b>' : 'Mensagens <b>retomadas</b>');
+}
+
+function clearAllChats() {
+  if (!confirm('Limpar TODAS as mensagens de todos os canais?')) return;
+  gun.get('hive_v2').get('admin').get('ctrl').get('clearChat').put(Date.now());
+  addActivity('🗑️', '<b>Clear chat</b> enviado ao relay');
+}
+
+function updateCtrlButtons() {
+  const mb = document.getElementById('btn-maintenance');
+  const pb = document.getElementById('btn-pause');
+  if (mb) { mb.textContent = ctrlState.maintenance ? '🟢 Desativar Manutenção' : '🔴 Modo Manutenção'; mb.style.background = ctrlState.maintenance ? 'rgba(0,255,136,.3)' : 'rgba(255,71,87,.3)'; }
+  if (pb) { pb.textContent = ctrlState.pauseMessaging ? '▶️ Retomar Msgs' : '⏸ Pausar Mensagens'; pb.style.background = ctrlState.pauseMessaging ? 'rgba(0,255,136,.3)' : ''; }
+  const s = document.getElementById('ctrl-sync');
+  if (s) s.textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-BR');
+}
+
 async function fetchHealth() {
   try {
     const r = await fetch(HEALTH_URL);
@@ -319,6 +364,11 @@ async function fetchHealth() {
       mediaCount = d.stats.media || mediaCount;
       document.getElementById('stat-msgs').textContent = msgCount;
       document.getElementById('stat-media').textContent = mediaCount;
+    }
+    if (typeof d.maintenanceMode === 'boolean' && typeof d.messagingPaused === 'boolean') {
+      ctrlState.maintenance = d.maintenanceMode;
+      ctrlState.pauseMessaging = d.messagingPaused;
+      updateCtrlButtons();
     }
     const now = new Date().toLocaleTimeString('pt-BR');
     document.getElementById('health-refresh').textContent = 'atualizado ' + now;

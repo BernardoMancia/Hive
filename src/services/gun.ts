@@ -7,9 +7,6 @@ const TTL_MS = 60 * 60 * 1000;
 
 const RELAY_PEERS = [
   'ws://82.112.245.99:8765/gun',
-  'wss://fogoeluar.com.br/gun',
-  'wss://peer.wallie.io/gun',
-  'wss://relay.peer.ooo/gun',
 ];
 
 export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting';
@@ -35,7 +32,7 @@ function clearReconnectTimer(): void {
 function scheduleReconnect(): void {
   clearReconnectTimer();
   reconnectAttempts++;
-  const delay = Math.min(3000 * Math.pow(1.5, reconnectAttempts - 1), 60000);
+  const delay = Math.min(1500 * Math.pow(1.5, reconnectAttempts - 1), 30000);
   reconnectTimer = setTimeout(() => {
     if (gunInstance) { notifyStatus('reconnecting'); createGunInstance(); }
   }, delay);
@@ -81,12 +78,23 @@ export function getGun(): any {
   return gunInstance!;
 }
 
+// Heartbeat: mantém conexão viva mesmo sem mensagens
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+function startHeartbeat(): void {
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  heartbeatTimer = setInterval(() => {
+    try { if (gunInstance && currentStatus === 'connected') gunInstance.get('_hb').put(Date.now()); }
+    catch (_) {}
+  }, 25000);
+}
+
 export function resetGun(): void {
   clearReconnectTimer();
   reconnectAttempts = 0;
   isInitializing = false;
   notifyStatus('reconnecting');
   createGunInstance();
+  startHeartbeat();
 }
 
 export function onConnectionStatusChange(listener: StatusListener): () => void {
@@ -98,6 +106,7 @@ export function onConnectionStatusChange(listener: StatusListener): () => void {
 export function getConnectionStatus(): ConnectionState { return currentStatus; }
 
 createGunInstance();
+startHeartbeat();
 
 export interface MessageData {
   _id: string;
@@ -152,8 +161,11 @@ export function subscribeToMessages(
 
       let text = data.text || '';
       if (data.enc === '1' && text) {
-        const dec = await decryptMessage(text, roomId);
-        text = dec ?? '';
+        try {
+          const dec = await decryptMessage(text, roomId);
+          if (dec !== null && dec !== undefined) text = dec;
+          // se decrypt falhar, mantém texto raw (pode ser versão antiga ou erro de chave)
+        } catch (_) {}
       }
 
       let user: { _id: string; name: string } = { _id: 'unknown', name: 'Unknown' };
