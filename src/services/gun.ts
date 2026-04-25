@@ -6,6 +6,7 @@ export const NAMESPACE = 'hive_v2';
 const TTL_MS = 60 * 60 * 1000;
 
 const RELAY_PEERS = [
+  'ws://82.112.245.99:8765/gun',
   'wss://fogoeluar.com.br/gun',
   'wss://peer.wallie.io/gun',
   'wss://relay.peer.ooo/gun',

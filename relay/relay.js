@@ -102,8 +102,8 @@ gun.get(NAMESPACE).get('rooms').map().on((_roomData, roomId) => {
 });
 
 const PORT = parseInt(process.env.PORT || '8765', 10);
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`[Hive Relay] 127.0.0.1:${PORT} | RAM | E2E | TTL 1h | Telegram:${TG_TOKEN ? 'ON' : 'OFF'}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`[Hive Relay] 0.0.0.0:${PORT} | RAM | E2E | TTL 1h | Telegram:${TG_TOKEN ? 'ON' : 'OFF'}`);
 });
 
 ['SIGINT', 'SIGTERM'].forEach((sig) => {
