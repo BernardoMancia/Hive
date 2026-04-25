@@ -1,18 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Animated,
-  StyleSheet,
-  StatusBar,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, TouchableOpacity, Animated, StyleSheet, StatusBar, ActivityIndicator } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../theme/colors';
-import { Typography } from '../theme/typography';
 import { RootStackParamList } from '../types';
 import { setAgeVerified } from '../services/presence';
 
@@ -24,102 +15,58 @@ type Props = {
 export default function AgeVerificationScreen({ navigation, route }: Props) {
   const { room } = route.params;
   const [confirming, setConfirming] = useState(false);
-
   const isMounted = useRef(true);
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
+  const scaleAnim = useRef(new Animated.Value(0.92)).current;
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
     isMounted.current = true;
-
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 400,
-        useNativeDriver: true,
-      }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, friction: 6, tension: 50, useNativeDriver: true }),
     ]).start();
-
-    return () => {
-      isMounted.current = false;
-    };
+    return () => { isMounted.current = false; };
   }, []);
 
   const handleConfirm = async () => {
     if (confirming) return;
     setConfirming(true);
-
     try {
       await setAgeVerified();
-      if (isMounted.current) {
-        navigation.replace('Chat', { room });
-      }
-    } catch (e) {
-      if (isMounted.current) {
-        setConfirming(false);
-      }
+      if (isMounted.current) navigation.replace('Chat', { room });
+    } catch (_) {
+      if (isMounted.current) setConfirming(false);
     }
   };
 
-  const handleCancel = () => {
-    navigation.goBack();
-  };
-
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-      <View style={styles.backdrop} />
+    <View style={[s.root, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" backgroundColor={Colors.bg} />
+      <View style={s.redOrb} />
 
-      <Animated.View
-        style={[
-          styles.card,
-          { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-        ]}
-      >
-        <View style={styles.iconContainer}>
-          <Text style={styles.icon}>🔞</Text>
+      <Animated.View style={[s.card, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
+        <View style={s.iconWrap}>
+          <Text style={s.icon}>🔞</Text>
         </View>
 
-        <Text style={styles.title}>Adult Content</Text>
-
-        <Text style={styles.description}>
-          The room{' '}
-          <Text style={styles.roomName}>"{room.name}"</Text>
-          {' '}contains content intended exclusively for users aged 18 and over.
+        <Text style={s.title}>Conteúdo +18</Text>
+        <Text style={s.desc}>
+          O canal <Text style={s.roomName}>"{room.name}"</Text> contém conteúdo exclusivo para maiores de 18 anos.
+        </Text>
+        <Text style={s.warn}>
+          Ao continuar, você declara ter 18 anos ou mais e assume plena responsabilidade pelo acesso a este conteúdo.
         </Text>
 
-        <Text style={styles.warning}>
-          By continuing, you declare that you are 18 years old or older and accept full
-          responsibility for accessing this content.
-        </Text>
-
-        <View style={styles.buttons}>
-          <TouchableOpacity
-            onPress={handleConfirm}
-            style={[styles.confirmButton, confirming && styles.buttonLoading]}
-            activeOpacity={0.85}
-            disabled={confirming}
-          >
-            {confirming ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={styles.confirmText}>I'm 18+, enter</Text>
-            )}
+        <View style={s.btns}>
+          <TouchableOpacity style={[s.confirmBtn, confirming && { opacity: 0.6 }]} onPress={handleConfirm} disabled={confirming} activeOpacity={0.85}>
+            {confirming
+              ? <ActivityIndicator size="small" color="#FFF" />
+              : <Text style={s.confirmTxt}>Tenho 18+ anos, entrar</Text>
+            }
           </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleCancel}
-            style={styles.cancelButton}
-            activeOpacity={0.85}
-            disabled={confirming}
-          >
-            <Text style={styles.cancelText}>Go back</Text>
+          <TouchableOpacity style={s.cancelBtn} onPress={() => navigation.goBack()} disabled={confirming} activeOpacity={0.85}>
+            <Text style={s.cancelTxt}>Voltar</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -127,97 +74,26 @@ export default function AgeVerificationScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(229, 57, 53, 0.03)',
-  },
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: Colors.bg, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
+  redOrb: { position: 'absolute', width: 300, height: 300, borderRadius: 150, backgroundColor: Colors.redDim, top: -60, right: -80 },
   card: {
-    width: '100%',
-    maxWidth: 400,
-    backgroundColor: Colors.surface,
-    borderRadius: 24,
-    padding: 32,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.adultGlow,
-    shadowColor: Colors.adult,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 8,
+    width: '100%', backgroundColor: Colors.glass, borderRadius: 24, padding: 28,
+    alignItems: 'center', borderWidth: 1, borderColor: Colors.red + '33',
   },
-  iconContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: 22,
-    backgroundColor: Colors.adultGlow,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
+  iconWrap: {
+    width: 72, height: 72, borderRadius: 22,
+    backgroundColor: Colors.redDim, borderWidth: 1, borderColor: Colors.red + '44',
+    justifyContent: 'center', alignItems: 'center', marginBottom: 20,
   },
-  icon: {
-    fontSize: 36,
-  },
-  title: {
-    ...Typography.h2,
-    color: Colors.adult,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  description: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  roomName: {
-    color: Colors.text,
-    fontWeight: '600',
-  },
-  warning: {
-    ...Typography.caption,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    marginBottom: 28,
-    lineHeight: 20,
-  },
-  buttons: {
-    width: '100%',
-    gap: 12,
-  },
-  confirmButton: {
-    backgroundColor: Colors.adult,
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: 'center',
-    minHeight: 52,
-    justifyContent: 'center',
-  },
-  buttonLoading: {
-    opacity: 0.7,
-  },
-  confirmText: {
-    ...Typography.bodyBold,
-    color: '#FFFFFF',
-  },
-  cancelButton: {
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  cancelText: {
-    ...Typography.bodyBold,
-    color: Colors.textSecondary,
-  },
+  icon: { fontSize: 36 },
+  title: { fontSize: 22, fontWeight: '800', color: Colors.red, marginBottom: 14, textAlign: 'center' },
+  desc: { fontSize: 15, color: Colors.textSub, textAlign: 'center', marginBottom: 10, lineHeight: 22 },
+  roomName: { color: Colors.text, fontWeight: '700' },
+  warn: { fontSize: 12, color: Colors.textMuted, textAlign: 'center', marginBottom: 28, lineHeight: 18 },
+  btns: { width: '100%', gap: 12 },
+  confirmBtn: { backgroundColor: Colors.red, borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
+  confirmTxt: { fontSize: 15, fontWeight: '700', color: '#FFF' },
+  cancelBtn: { backgroundColor: Colors.glass, borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+  cancelTxt: { fontSize: 15, fontWeight: '600', color: Colors.textSub },
 });

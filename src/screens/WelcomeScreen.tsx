@@ -11,13 +11,14 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors } from '../theme/colors';
-import { Typography } from '../theme/typography';
 import { RootStackParamList } from '../types';
 import { getUserName, setUserName, getUserId, initPresence } from '../services/presence';
-import { useConnectionStatus } from '../services/connection';
+
+const { width } = Dimensions.get('window');
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Welcome'>;
@@ -27,28 +28,25 @@ export default function WelcomeScreen({ navigation }: Props) {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
+  const [focused, setFocused] = useState(false);
 
   const isMounted = useRef(true);
-  const hexRotation = useRef(new Animated.Value(0)).current;
-  const logoScale = useRef(new Animated.Value(0)).current;
-  const titleFade = useRef(new Animated.Value(0)).current;
-  const subtitleFade = useRef(new Animated.Value(0)).current;
-  const inputSlide = useRef(new Animated.Value(40)).current;
-  const inputFade = useRef(new Animated.Value(0)).current;
-  const buttonFade = useRef(new Animated.Value(0)).current;
-  const hexLoop = useRef<Animated.CompositeAnimation | null>(null);
-
-  const { status: connStatus } = useConnectionStatus();
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     isMounted.current = true;
-    startAnimations();
     checkExistingUser();
 
-    return () => {
-      isMounted.current = false;
-      hexLoop.current?.stop();
-    };
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.08, duration: 2000, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 2000, useNativeDriver: true }),
+      ])
+    ).start();
+
+    return () => { isMounted.current = false; };
   }, []);
 
   const checkExistingUser = async () => {
@@ -57,144 +55,74 @@ export default function WelcomeScreen({ navigation }: Props) {
       if (existingName && isMounted.current) {
         const userId = await getUserId();
         await initPresence(userId, existingName);
-        if (isMounted.current) {
-          navigation.replace('Home');
-        }
+        if (isMounted.current) navigation.replace('Home');
         return;
       }
-    } catch (e) {
-      console.warn('[Hive:welcome] checkExistingUser error:', e);
-    }
+    } catch (_) {}
     if (isMounted.current) {
       setLoading(false);
-    }
-  };
-
-  const startAnimations = () => {
-    const loop = Animated.loop(
-      Animated.timing(hexRotation, {
-        toValue: 1,
-        duration: 20000,
-        useNativeDriver: true,
-      })
-    );
-    hexLoop.current = loop;
-    loop.start();
-
-    Animated.stagger(180, [
-      Animated.spring(logoScale, {
-        toValue: 1,
-        friction: 4,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-      Animated.timing(titleFade, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.timing(subtitleFade, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
       Animated.parallel([
-        Animated.timing(inputSlide, {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(inputFade, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.timing(buttonFade, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-    ]).start();
+        Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
+      ]).start();
+    }
   };
 
   const handleEnter = async () => {
     const trimmed = name.trim();
-
-    if (trimmed.length < 2) {
-      Alert.alert('Invalid name', 'Please enter at least 2 characters.');
-      return;
-    }
-    if (trimmed.length > 20) {
-      Alert.alert('Invalid name', 'Maximum 20 characters allowed.');
-      return;
-    }
-
+    if (trimmed.length < 2) { Alert.alert('Nome inválido', 'Mínimo 2 caracteres.'); return; }
+    if (trimmed.length > 20) { Alert.alert('Nome inválido', 'Máximo 20 caracteres.'); return; }
     setJoining(true);
     try {
       await setUserName(trimmed);
       const userId = await getUserId();
       await initPresence(userId, trimmed);
-      if (isMounted.current) {
-        navigation.replace('Home');
-      }
-    } catch (e) {
-      if (isMounted.current) {
-        Alert.alert('Error', 'Failed to initialize. Please try again.');
-        setJoining(false);
-      }
+      if (isMounted.current) navigation.replace('Home');
+    } catch (_) {
+      if (isMounted.current) { Alert.alert('Erro', 'Tente novamente.'); setJoining(false); }
     }
   };
 
-  const spin = hexRotation.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
-
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-        <Text style={styles.loadingEmoji}>🐝</Text>
-        <ActivityIndicator size="small" color={Colors.primary} style={styles.loadingSpinner} />
+      <View style={s.splash}>
+        <StatusBar barStyle="light-content" backgroundColor={Colors.bg} />
+        <Animated.Text style={[s.logoText, { transform: [{ scale: pulseAnim }] }]}>🐝</Animated.Text>
       </View>
     );
   }
 
+  const canJoin = name.trim().length >= 2 && !joining;
+
   return (
     <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={s.root}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
-      <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={Colors.bg} />
 
-      <View style={styles.bgDecor}>
-        <Animated.View style={[styles.hexBg, { transform: [{ rotate: spin }] }]}>
-          <Text style={styles.hexBgText}>⬡</Text>
-        </Animated.View>
+      <View style={s.bg}>
+        <View style={[s.orb, s.orb1]} />
+        <View style={[s.orb, s.orb2]} />
       </View>
 
-      <View style={styles.content}>
-        <Animated.View style={[styles.logoContainer, { transform: [{ scale: logoScale }] }]}>
-          <Text style={styles.logoEmoji}>🐝</Text>
-          <View style={styles.logoGlow} />
-        </Animated.View>
+      <Animated.View style={[s.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+        <View style={s.logoWrap}>
+          <Animated.Text style={[s.logoText, { transform: [{ scale: pulseAnim }] }]}>🐝</Animated.Text>
+          <View style={s.logoBadge}>
+            <View style={s.logoDot} />
+          </View>
+        </View>
 
-        <Animated.Text style={[styles.title, { opacity: titleFade }]}>Hive</Animated.Text>
+        <Text style={s.title}>Hive</Text>
+        <Text style={s.subtitle}>Chat P2P encriptado{'\n'}zero dados armazenados</Text>
 
-        <Animated.Text style={[styles.subtitle, { opacity: subtitleFade }]}>
-          {'Decentralized P2P Chat\nEvery peer sustains the network'}
-        </Animated.Text>
-
-        <Animated.View
-          style={[
-            styles.inputContainer,
-            { opacity: inputFade, transform: [{ translateY: inputSlide }] },
-          ]}
-        >
+        <View style={[s.inputWrap, focused && s.inputWrapFocused]}>
+          <Text style={s.inputIcon}>👤</Text>
           <TextInput
-            style={styles.input}
-            placeholder="What should we call you?"
+            style={s.input}
+            placeholder="Como quer ser chamado?"
             placeholderTextColor={Colors.textMuted}
             value={name}
             onChangeText={setName}
@@ -204,202 +132,120 @@ export default function WelcomeScreen({ navigation }: Props) {
             returnKeyType="go"
             onSubmitEditing={handleEnter}
             editable={!joining}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
           />
-        </Animated.View>
+        </View>
 
-        <Animated.View style={[styles.buttonWrapper, { opacity: buttonFade }]}>
-          <TouchableOpacity
-            style={[
-              styles.button,
-              (name.trim().length < 2 || joining) && styles.buttonDisabled,
-            ]}
-            onPress={handleEnter}
-            disabled={name.trim().length < 2 || joining}
-            activeOpacity={0.85}
-          >
-            {joining ? (
-              <ActivityIndicator size="small" color={Colors.textInverse} />
-            ) : (
-              <>
-                <Text style={styles.buttonText}>Join the Hive</Text>
-                <Text style={styles.buttonArrow}>→</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </Animated.View>
+        <TouchableOpacity
+          style={[s.btn, !canJoin && s.btnDisabled]}
+          onPress={handleEnter}
+          disabled={!canJoin}
+          activeOpacity={0.85}
+        >
+          {joining
+            ? <ActivityIndicator size="small" color={Colors.bg} />
+            : <Text style={s.btnText}>Entrar na Hive →</Text>
+          }
+        </TouchableOpacity>
 
-        <Animated.View style={[styles.features, { opacity: buttonFade }]}>
+        <View style={s.pills}>
           {[
-            { icon: '🔒', label: 'No central server' },
-            { icon: '👤', label: 'No login required' },
-            { icon: '🌐', label: 'Distributed network' },
-          ].map((f) => (
-            <View key={f.label} style={styles.featureItem}>
-              <Text style={styles.featureIcon}>{f.icon}</Text>
-              <Text style={styles.featureText}>{f.label}</Text>
+            { icon: '🔒', label: 'E2E cifrado' },
+            { icon: '👻', label: 'Sem registro' },
+            { icon: '💨', label: 'TTL 1 hora' },
+          ].map(p => (
+            <View key={p.label} style={s.pill}>
+              <Text style={s.pillIcon}>{p.icon}</Text>
+              <Text style={s.pillLabel}>{p.label}</Text>
             </View>
           ))}
-        </Animated.View>
-
-        {connStatus !== 'connected' && (
-          <Animated.View style={[styles.connWarning, { opacity: buttonFade }]}>
-            <Text style={styles.connWarningText}>
-              ⚠ Network issues detected — you can still join
-            </Text>
-          </Animated.View>
-        )}
-      </View>
+        </View>
+      </Animated.View>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: Colors.bg },
+  splash: { flex: 1, backgroundColor: Colors.bg, justifyContent: 'center', alignItems: 'center' },
+  bg: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
+  orb: { position: 'absolute', borderRadius: 999 },
+  orb1: {
+    width: 280, height: 280,
+    top: -80, right: -80,
+    backgroundColor: Colors.neonDim,
   },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingEmoji: {
-    fontSize: 56,
-  },
-  loadingSpinner: {
-    marginTop: 16,
-  },
-  bgDecor: {
-    position: 'absolute',
-    top: -80,
-    right: -60,
-    opacity: 0.04,
-    pointerEvents: 'none',
-  },
-  hexBg: {
-    width: 250,
-    height: 250,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  hexBgText: {
-    fontSize: 200,
-    color: Colors.primary,
+  orb2: {
+    width: 200, height: 200,
+    bottom: 100, left: -60,
+    backgroundColor: Colors.purpleDim,
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: 28,
+    paddingBottom: 40,
   },
-  logoContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 30,
-    backgroundColor: Colors.primaryGlow,
-    justifyContent: 'center',
-    alignItems: 'center',
+  logoWrap: {
+    width: 90, height: 90,
+    borderRadius: 26,
+    backgroundColor: Colors.neonDim,
+    borderWidth: 1, borderColor: Colors.neonBorder,
+    justifyContent: 'center', alignItems: 'center',
     marginBottom: 24,
-    borderWidth: 1,
-    borderColor: Colors.borderActive,
   },
-  logoEmoji: {
-    fontSize: 48,
+  logoText: { fontSize: 42 },
+  logoBadge: {
+    position: 'absolute', top: -4, right: -4,
+    width: 16, height: 16, borderRadius: 8,
+    backgroundColor: Colors.bg,
+    justifyContent: 'center', alignItems: 'center',
   },
-  logoGlow: {
-    position: 'absolute',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: Colors.primaryGlow,
-    opacity: 0.4,
+  logoDot: {
+    width: 10, height: 10, borderRadius: 5,
+    backgroundColor: Colors.green,
+    shadowColor: Colors.green, shadowOpacity: 0.8, shadowRadius: 4,
   },
   title: {
-    ...Typography.hero,
-    color: Colors.primary,
-    marginBottom: 12,
-    textAlign: 'center',
+    fontSize: 44, fontWeight: '800', letterSpacing: -1.5,
+    color: Colors.text, marginBottom: 10,
   },
   subtitle: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: 40,
-    lineHeight: 24,
+    fontSize: 15, color: Colors.textSub, textAlign: 'center',
+    lineHeight: 22, marginBottom: 40,
   },
-  inputContainer: {
-    width: '100%',
-    marginBottom: 20,
+  inputWrap: {
+    flexDirection: 'row', alignItems: 'center',
+    width: '100%', marginBottom: 16,
+    backgroundColor: Colors.glass,
+    borderWidth: 1, borderColor: Colors.border,
+    borderRadius: 14, paddingHorizontal: 16,
+    height: 54,
   },
+  inputWrapFocused: { borderColor: Colors.neon },
+  inputIcon: { fontSize: 18, marginRight: 10 },
   input: {
-    ...Typography.body,
-    color: Colors.text,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 14,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    fontSize: 16,
+    flex: 1, fontSize: 16, color: Colors.text,
+    height: '100%',
   },
-  buttonWrapper: {
-    width: '100%',
+  btn: {
+    width: '100%', height: 54,
+    borderRadius: 14, overflow: 'hidden',
+    backgroundColor: Colors.neon,
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 32,
   },
-  button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.primary,
-    borderRadius: 14,
-    paddingVertical: 16,
-    gap: 10,
-    minHeight: 54,
+  btnDisabled: { opacity: 0.35 },
+  btnText: { fontSize: 16, fontWeight: '700', color: Colors.bg },
+  pills: { flexDirection: 'row', gap: 10, flexWrap: 'wrap', justifyContent: 'center' },
+  pill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: Colors.glassLight,
+    borderWidth: 1, borderColor: Colors.border,
+    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
   },
-  buttonDisabled: {
-    opacity: 0.4,
-  },
-  buttonText: {
-    ...Typography.bodyBold,
-    color: Colors.textInverse,
-    fontSize: 16,
-  },
-  buttonArrow: {
-    fontSize: 18,
-    color: Colors.textInverse,
-    fontWeight: '600',
-  },
-  features: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 20,
-    marginTop: 40,
-    flexWrap: 'wrap',
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  featureIcon: {
-    fontSize: 14,
-  },
-  featureText: {
-    ...Typography.small,
-    color: Colors.textMuted,
-  },
-  connWarning: {
-    marginTop: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 214, 0, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 214, 0, 0.2)',
-  },
-  connWarningText: {
-    ...Typography.small,
-    color: Colors.warning,
-    textAlign: 'center',
-  },
+  pillIcon: { fontSize: 13 },
+  pillLabel: { fontSize: 12, color: Colors.textMuted, fontWeight: '500' },
 });

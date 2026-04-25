@@ -1,57 +1,52 @@
-import { TextStyle } from 'react-native';
+import { StyleSheet } from 'react-native';
 
-export const Typography: Record<string, TextStyle> = {
+export const Typography = StyleSheet.create({
   hero: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 32,
-    lineHeight: 40,
-    letterSpacing: -0.5,
+    fontSize: 42,
+    fontWeight: '800',
+    letterSpacing: -1,
   },
   h1: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 26,
-    lineHeight: 32,
-    letterSpacing: -0.3,
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: -0.5,
   },
   h2: {
-    fontFamily: 'Inter_600SemiBold',
     fontSize: 20,
-    lineHeight: 28,
+    fontWeight: '700',
+    letterSpacing: -0.3,
   },
   h3: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 17,
-    lineHeight: 24,
+    fontSize: 16,
+    fontWeight: '600',
   },
   body: {
-    fontFamily: 'Inter_400Regular',
     fontSize: 15,
+    fontWeight: '400',
     lineHeight: 22,
   },
   bodyBold: {
-    fontFamily: 'Inter_600SemiBold',
     fontSize: 15,
-    lineHeight: 22,
-  },
-  caption: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  captionBold: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13,
-    lineHeight: 18,
+    fontWeight: '600',
   },
   small: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 11,
-    lineHeight: 16,
+    fontSize: 12,
+    fontWeight: '400',
   },
-  badge: {
-    fontFamily: 'Inter_700Bold',
+  caption: {
     fontSize: 11,
-    lineHeight: 14,
+    fontWeight: '400',
+    letterSpacing: 0.3,
+  },
+  captionBold: {
+    fontSize: 11,
+    fontWeight: '700',
     letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
-};
+  label: {
+    fontSize: 13,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+  },
+});

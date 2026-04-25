@@ -2,7 +2,7 @@
   "expo": {
     "name": "Hive",
     "slug": "hive-chat",
-    "version": "3.0.1",
+    "version": "3.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -23,7 +23,7 @@
       },
       "softwareKeyboardLayoutMode": "adjustResize",
       "package": "com.hive.chat",
-      "versionCode": 10,
+      "versionCode": 11,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",

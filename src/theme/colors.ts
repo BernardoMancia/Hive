@@ -1,50 +1,66 @@
 export const Colors = {
-  background: '#0A0A0F',
-  surface: '#12121A',
-  surfaceElevated: '#1A1A25',
-  surfaceGlass: 'rgba(26, 26, 37, 0.75)',
-  
-  primary: '#F5A623',
-  primaryDark: '#C4841D',
-  primaryLight: '#FFD080',
-  primaryGlow: 'rgba(245, 166, 35, 0.15)',
-  
-  accent: '#FF8C00',
-  accentGlow: 'rgba(255, 140, 0, 0.2)',
-  
-  honey: '#FFB347',
-  honeyDark: '#CC8E39',
-  amber: '#FFBF00',
-  gold: '#FFD700',
-  
-  text: '#F0F0F5',
-  textSecondary: '#8E8E9A',
-  textMuted: '#5A5A6A',
-  textInverse: '#0A0A0F',
-  
-  online: '#00E676',
-  onlineGlow: 'rgba(0, 230, 118, 0.3)',
-  offline: '#FF5252',
-  warning: '#FFD600',
-  
-  border: 'rgba(255, 255, 255, 0.05)',
-  borderActive: 'rgba(245, 166, 35, 0.3)',
-  
-  adult: '#E53935',
-  adultGlow: 'rgba(229, 57, 53, 0.2)',
-  
+  bg: '#050A12',
+  surface: 'rgba(10, 18, 35, 0.95)',
+  glass: 'rgba(15, 25, 45, 0.7)',
+  glassLight: 'rgba(255, 255, 255, 0.04)',
+
+  neon: '#00D4FF',
+  neonDim: 'rgba(0, 212, 255, 0.15)',
+  neonBorder: 'rgba(0, 212, 255, 0.25)',
+  purple: '#7C3AED',
+  purpleDim: 'rgba(124, 58, 237, 0.15)',
+
+  green: '#00FF88',
+  greenDim: 'rgba(0, 255, 136, 0.15)',
+  red: '#FF4757',
+  redDim: 'rgba(255, 71, 87, 0.15)',
+  yellow: '#FFD32A',
+  yellowDim: 'rgba(255, 211, 42, 0.15)',
+
+  text: '#E2E8F0',
+  textSub: '#94A3B8',
+  textMuted: '#475569',
+
+  border: 'rgba(255, 255, 255, 0.06)',
+  borderActive: 'rgba(0, 212, 255, 0.3)',
+
+  sent: 'rgba(0, 212, 255, 0.18)',
+  sentBorder: 'rgba(0, 212, 255, 0.35)',
+  sentText: '#E2E8F0',
+  received: 'rgba(255, 255, 255, 0.06)',
+  receivedBorder: 'rgba(255, 255, 255, 0.1)',
+  receivedText: '#E2E8F0',
+
+  primary: '#00D4FF',
+  primaryDark: '#0099BB',
+
+  background: '#050A12',
+  textInverse: '#050A12',
+  online: '#00FF88',
+  onlineGlow: 'rgba(0, 255, 136, 0.3)',
+  offline: '#FF4757',
+  warning: '#FFD32A',
+  surfaceElevated: 'rgba(15, 25, 45, 0.9)',
+  surfaceGlass: 'rgba(15, 25, 45, 0.7)',
+  accent: '#7C3AED',
+  accentGlow: 'rgba(124, 58, 237, 0.2)',
+  primaryGlow: 'rgba(0, 212, 255, 0.15)',
+  adult: '#FF4757',
+  adultGlow: 'rgba(255, 71, 87, 0.2)',
+  borderLight: 'rgba(255, 255, 255, 0.1)',
+
   message: {
-    sent: '#2A2520',
-    sentBorder: 'rgba(245, 166, 35, 0.15)',
-    received: '#1A1A25',
-    receivedBorder: 'rgba(255, 255, 255, 0.05)',
-    system: 'rgba(245, 166, 35, 0.08)',
+    sent: 'rgba(0, 212, 255, 0.18)',
+    sentBorder: 'rgba(0, 212, 255, 0.35)',
+    received: 'rgba(255, 255, 255, 0.06)',
+    receivedBorder: 'rgba(255, 255, 255, 0.1)',
+    system: 'rgba(0, 212, 255, 0.08)',
   },
-  
+
   gradient: {
-    primary: ['#F5A623', '#FF8C00'],
-    dark: ['#0A0A0F', '#12121A'],
-    card: ['rgba(26, 26, 37, 0.9)', 'rgba(18, 18, 26, 0.95)'],
-    hero: ['#F5A623', '#FFD700', '#FF8C00'],
+    primary: ['#00D4FF', '#7C3AED'],
+    dark: ['#050A12', '#0A1220'],
+    card: ['rgba(10,18,35,0.9)', 'rgba(5,10,18,0.95)'],
+    hero: ['#00D4FF', '#7C3AED'],
   },
 };
