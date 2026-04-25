@@ -18,13 +18,22 @@ const ADMIN_IDS = (process.env.TG_ADMIN_IDS || '').split(',').map(s => s.trim())
 
 const stats = { messages: 0, media: 0, started: Date.now() };
 
+const fs = require('fs');
+const path = require('path');
+
+const ADMIN_HTML = path.join(__dirname, 'admin', 'index.html');
+
 const server = http.createServer((req, res) => {
-  if (req.url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
+  const url = req.url.split('?')[0];
+
+  if (url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
     res.end(JSON.stringify({
       status: 'ok',
       uptime: Math.floor(process.uptime()),
       memory: `${Math.round(process.memoryUsage().rss / 1024 / 1024)}MB`,
+      memoryRaw: Math.round(process.memoryUsage().rss / 1024 / 1024),
+      heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
       persistence: 'none',
       ttl: '1h',
       telegram: TG_TOKEN ? 'configured' : 'disabled',
@@ -33,9 +42,23 @@ const server = http.createServer((req, res) => {
     }));
     return;
   }
+
+  if (url === '/admin' || url === '/admin/') {
+    try {
+      const html = fs.readFileSync(ADMIN_HTML, 'utf8');
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+      res.end(html);
+    } catch (_) {
+      res.writeHead(404);
+      res.end('Admin panel not found');
+    }
+    return;
+  }
+
   res.writeHead(200);
   res.end('Hive Relay | RAM only | E2E | TTL 1h');
 });
+
 
 const gun = Gun({
   web: server,

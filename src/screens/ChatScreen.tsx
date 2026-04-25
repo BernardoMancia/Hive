@@ -37,6 +37,8 @@ type MessageItem = {
   user: { _id: string; name: string };
   image?: string;
   pending?: boolean;
+  sent?: boolean;
+  confirmed?: boolean;
 };
 
 type Props = {
@@ -97,7 +99,12 @@ export default function ChatScreen({ navigation, route }: Props) {
         room.id,
         (msg) => {
           if (!isMounted.current) return;
-          if (seenIds.current.has(msg._id)) return;
+          if (seenIds.current.has(msg._id)) {
+            setMessages(prev => prev.map(m =>
+              m._id === msg._id ? { ...m, confirmed: true, pending: false, sent: true } : m
+            ));
+            return;
+          }
           seenIds.current.add(msg._id);
           setMessages(prev => {
             if (prev.some(m => m._id === msg._id)) return prev;
@@ -127,12 +134,18 @@ export default function ChatScreen({ navigation, route }: Props) {
     const ts = Date.now();
     setInputText('');
 
-    const optimistic: MessageItem = { _id: tempId, text, createdAt: ts, user: { _id: uid, name: uname }, pending: true };
+    const optimistic: MessageItem = { _id: tempId, text, createdAt: ts, user: { _id: uid, name: uname }, pending: true, sent: false, confirmed: false };
     seenIds.current.add(tempId);
     setMessages(prev => [optimistic, ...prev]);
 
     const ok = await sendMessage(room.id, { _id: tempId, text, createdAt: ts, user: { _id: uid, name: uname } });
-    if (!ok && isMounted.current) Alert.alert('Falha', 'Mensagem não enviada. Verifique sua conexão.');
+    if (isMounted.current) {
+      if (ok) {
+        setMessages(prev => prev.map(m => m._id === tempId ? { ...m, pending: false, sent: true } : m));
+      } else {
+        Alert.alert('Falha', 'Mensagem não enviada. Verifique sua conexão.');
+      }
+    }
   }, [inputText, room.id]);
 
   const pickAndSendImage = useCallback(async (source: 'gallery' | 'camera') => {
@@ -143,8 +156,8 @@ export default function ChatScreen({ navigation, route }: Props) {
     if (!perm.granted) { Alert.alert('Permissão necessária', 'Permita o acesso para enviar imagens.'); return; }
 
     const result = source === 'gallery'
-      ? await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.3, allowsEditing: true })
-      : await ImagePicker.launchCameraAsync({ quality: 0.3, allowsEditing: true });
+      ? await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.25 })
+      : await ImagePicker.launchCameraAsync({ quality: 0.25 });
 
     if (result.canceled || !result.assets?.[0]?.uri) return;
     if (!isMounted.current) return;
@@ -167,6 +180,10 @@ export default function ChatScreen({ navigation, route }: Props) {
 
   const renderMessage = useCallback(({ item }: { item: MessageItem }) => {
     const isOwn = item.user._id === userIdRef.current;
+    const statusTick = isOwn
+      ? item.confirmed ? ' ✓✓' : item.sent ? ' ✓' : item.pending ? ' ⏳' : ' ✓'
+      : '';
+    const tickColor = item.confirmed ? Colors.neon : Colors.textMuted;
     return (
       <View style={[s.msgRow, isOwn ? s.msgRowRight : s.msgRowLeft]}>
         {!isOwn && <View style={s.avatar}><Text style={s.avatarText}>{item.user.name?.[0]?.toUpperCase() || '?'}</Text></View>}
@@ -177,9 +194,10 @@ export default function ChatScreen({ navigation, route }: Props) {
           ) : (
             <Text style={s.msgText}>{item.text}</Text>
           )}
-          <Text style={[s.msgTime, isOwn ? s.msgTimeRight : s.msgTimeLeft]}>
-            {formatTime(item.createdAt)}{item.pending ? ' ⏳' : ''}
-          </Text>
+          <View style={[s.msgMeta, isOwn ? s.msgMetaRight : s.msgMetaLeft]}>
+            <Text style={s.msgTime}>{formatTime(item.createdAt)}</Text>
+            {isOwn && <Text style={[s.msgTick, { color: tickColor }]}>{statusTick}</Text>}
+          </View>
         </View>
       </View>
     );
@@ -341,9 +359,11 @@ const s = StyleSheet.create({
   senderName: { fontSize: 11, fontWeight: '700', color: Colors.neon, marginBottom: 4, letterSpacing: 0.3 },
   msgText: { fontSize: 15, color: Colors.text, lineHeight: 21 },
   msgImage: { width: 200, height: 200, borderRadius: 12, marginVertical: 4 },
-  msgTime: { fontSize: 10, color: Colors.textMuted, marginTop: 5 },
-  msgTimeRight: { textAlign: 'right' },
-  msgTimeLeft: { textAlign: 'left' },
+  msgMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 5, gap: 3 },
+  msgMetaRight: { justifyContent: 'flex-end' },
+  msgMetaLeft: { justifyContent: 'flex-start' },
+  msgTime: { fontSize: 10, color: Colors.textMuted },
+  msgTick: { fontSize: 10, fontWeight: '700' },
 
   inputBar: {
     flexDirection: 'row', alignItems: 'flex-end',
