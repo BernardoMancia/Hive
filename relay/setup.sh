@@ -6,7 +6,7 @@
 set -euo pipefail
 
 DOMAIN="fogoeluar.com.br"
-RELAY_DIR="/opt/hive-relay"
+RELAY_DIR="/home/adm_luke/prod/apps/hive-relay"
 NGINX_SITE="/etc/nginx/sites-available/hive-relay"
 RELAY_PORT=8765
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

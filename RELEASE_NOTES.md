@@ -1,95 +1,87 @@
-# Release Notes - Hive
+# Hive — Release Notes & Versioning
+
+## Esquema de Versão: X.Y.Z
+
+| Campo | Significado |
+|---|---|
+| **X** (Major) | Mudança grande de arquitetura ou conjunto de features |
+| **Y** (Phase) | `0` = Alpha · `1` = Beta · `2` = Stable |
+| **Z** (Patch) | Número de modificações pequenas nesta fase |
+
+**Exemplos:**
+- `3.0.0` → Major 3, Alpha, build inicial
+- `3.0.3` → Major 3, Alpha, 3 correções
+- `3.1.0` → Major 3, Beta, build inicial
+- `3.2.0` → Major 3, Stable
+- `4.0.0` → Nova grande mudança, Alpha
 
 ---
 
-## v2.1.1 — Patch Release
+## v3.0.0-alpha · versionCode 9 · 2026-04-25
 
-**Version:** 2.1.1 (Production)
-**Version Code:** 4
-**Release Date:** 2026-04-22
+**Fase:** Alpha (instável — em desenvolvimento ativo)
+
+### O que há de novo
+
+- **Relay próprio** na VPS `fogoeluar.com.br` — zero dependência de relays públicos
+- **Criptografia E2E dupla camada**: TLS 1.3 (transporte) + AES-256-GCM via GunDB SEA (conteúdo)
+- **TTL de 1 hora**: mensagens são automaticamente deletadas 1h após o envio
+- **Admin Center** em `fogoeluar.com.br/admin` com usuários online e gerenciamento de canais
+- **Telegram relay**: toda mídia enviada é encaminhada para grupo Telegram com metadados
+- **Bloqueio de screenshot** (FLAG_SECURE) em todo o app
+- **Ofuscação R8**: código Java/Kotlin minificado, strings ofuscadas, logs removidos
+
+### Segurança
+
+- Pinning do certificado ISRG Root X1 (Let's Encrypt) no Android
+- `allowBackup=false` no AndroidManifest
+- Cleartext bloqueado globalmente
 
 ---
-
-### English
-
-**What's new in 2.1.1**
-
-This release is a full logic rewrite focused on stability and correctness. No new features were added; all changes are internal improvements.
-
-- Fixed double-initialization guard in GunDB service (prevents duplicate peer connections)
-- Fixed race condition in `resetGun` that caused a brief incorrect "reconnecting" status flash
-- Fixed memory leak: animation loops (breathe, float, hex-rotate) now properly cancelled on component unmount
-- Fixed `initPresence` being called multiple times without guard, which duplicated heartbeat timers
-- Fixed `markOffline` accidentally re-initializing GunDB during shutdown
-- Fixed peer count duplication caused by GunDB emitting the same node multiple times (now uses `Map` dedup)
-- Increased `STALE_THRESHOLD` from 35s to 50s to reduce false "offline" detections
-- Fixed media upload: `size = undefined` from `FileSystem.getInfoAsync` now throws explicit error instead of passing silently
-- Added image extension allowlist + MIME type map for correct media validation
-- Fixed `subscribeToPresence` not being cleaned up on `ChatScreen` unmount (caused ghost peer counts)
-- Fixed `renderActions` recreated on every render in `ChatScreen` (now memoized with `useMemo`)
-- Fixed userId being `'__init__'` before async init completed, causing sent messages to appear on wrong side
-- Added `isMounted` guard to all async callbacks in `WelcomeScreen`, `HomeScreen`, `ChatScreen`, `AgeVerificationScreen`
-- Fixed double-tap bug in `AgeVerificationScreen` that could trigger `navigation.replace` twice
-- Fixed `PeerStatus` recalculating `hexagons` array on every render (now `useMemo`)
-- Fixed `OnlineCounter` breathe animation conflicting with pulse animation (animations now sequenced correctly)
 
 <pt-BR>
-**O que há de novo na versão 2.1.1**
+Versão 3.0.0 Alpha — Reescrita completa de arquitetura
 
-Esta versão é uma reescrita completa da lógica focada em estabilidade e correção. Nenhuma nova funcionalidade foi adicionada; todas as mudanças são melhorias internas.
+Esta é a primeira versão Alpha da linha 3.x do Hive.
 
-- Corrigida dupla inicialização no serviço GunDB (evita conexões de peers duplicadas)
-- Corrigida race condition no `resetGun` que causava flash incorreto de status "reconnecting"
-- Corrigido vazamento de memória: loops de animação (breathe, float, rotação hex) agora são cancelados corretamente no unmount
-- Corrigida chamada múltipla de `initPresence` sem guard, que duplicava timers de heartbeat
-- Corrigido `markOffline` reinicializando acidentalmente o GunDB durante shutdown
-- Corrigida duplicação de contagem de peers causada pelo GunDB emitindo o mesmo nó múltiplas vezes (agora usa `Map` para deduplicação)
-- `STALE_THRESHOLD` aumentado de 35s para 50s para reduzir detecções falsas de "offline"
-- Corrigido upload de mídia: `size = undefined` do `FileSystem.getInfoAsync` agora lança erro explícito em vez de passar silenciosamente
-- Adicionada lista de extensões permitidas + mapa de MIME type para validação correta de mídia
-- Corrigido `subscribeToPresence` não sendo limpo no unmount do `ChatScreen` (causava contagens de peers fantasmas)
-- Corrigido `renderActions` sendo recriado a cada render no `ChatScreen` (agora memoizado com `useMemo`)
-- Corrigido userId sendo `'__init__'` antes do init assíncrono completar, fazendo mensagens enviadas aparecerem no lado errado
-- Adicionado guard `isMounted` em todos os callbacks assíncronos de `WelcomeScreen`, `HomeScreen`, `ChatScreen`, `AgeVerificationScreen`
-- Corrigido bug de duplo toque em `AgeVerificationScreen` que disparava `navigation.replace` duas vezes
-- Corrigido `PeerStatus` recalculando array `hexagons` a cada render (agora `useMemo`)
-- Corrigida animação breathe do `OnlineCounter` conflitando com a animação pulse (animações agora sequenciadas corretamente)
+**Novidades:**
+• Relay próprio no domínio fogoeluar.com.br com criptografia TLS 1.3
+• Mensagens criptografadas ponta a ponta com AES-256-GCM
+• Mensagens apagadas automaticamente após 1 hora
+• Painel administrativo web para gerenciar canais e ver usuários online
+• Encaminhamento de mídias para grupo Telegram com nome do remetente e horário
+• Bloqueio de screenshots em todo o aplicativo
+• Código do app ofuscado contra engenharia reversa
+
+⚠️ Esta é uma versão Alpha — pode conter instabilidades.
 </pt-BR>
+
+<en-US>
+Version 3.0.0 Alpha — Complete architecture rewrite
+
+This is the first Alpha release of the Hive 3.x line.
+
+**What's new:**
+• Private relay at fogoeluar.com.br with TLS 1.3 encryption
+• End-to-end encrypted messages using AES-256-GCM
+• Messages automatically deleted after 1 hour
+• Web admin panel to manage channels and view online users
+• Media forwarding to Telegram group with sender name and timestamp
+• Screenshot blocking throughout the app
+• App code obfuscated against reverse engineering
+
+⚠️ This is an Alpha release — may contain instabilities.
+</en-US>
 
 ---
 
-## v2.1.0 — Production Release
+## Histórico Anterior (pré-3.x)
 
-**Version:** 2.1.0 (Production)
-**Version Code:** 3
-**Release Date:** 2026-04-21
-
----
-
-### English
-
-**What's new in 2.1.0**
-
-- P2P chat with no central server — completely decentralized
-- 12 themed chat rooms including a protected Adult room
-- Image sharing via peer-to-peer (gallery and camera)
-- Real-time peer count with animated neon indicators
-- Persistent anonymous identity (local storage only)
-- Connection status banner with manual reconnect
-- Cybersecurity / Fluent UI dark design with glassmorphism
-- Smooth entry animations and floating effects
-- Zero data collection — no accounts, no tracking
-
-<pt-BR>
-**O que há de novo na versão 2.1.0**
-
-- Chat P2P sem servidor central — completamente descentralizado
-- 12 salas temáticas incluindo sala Adulto protegida por verificação de idade
-- Compartilhamento de imagens via peer-to-peer (galeria e câmera)
-- Contagem de peers em tempo real com indicadores neon animados
-- Identidade anônima persistente (armazenamento local apenas)
-- Banner de status de conexão com reconexão manual
-- Design escuro Cybersecurity / Fluent UI com glassmorphismo
-- Animações de entrada suaves e efeitos flutuantes
-- Zero coleta de dados — sem contas, sem rastreamento
-</pt-BR>
+| Versão | versionCode | Data |
+|---|---|---|
+| 2.4.0 | 8 | 2026-04-25 |
+| 2.3.0 | 7 | 2026-04-25 |
+| 2.2.0 | 6 | 2026-04-25 |
+| 2.1.2 | 5 | 2026-04-22 |
+| 2.1.1 | 4 | 2026-04-22 |
+| 2.1.0 | 3 | 2026-04-22 |
