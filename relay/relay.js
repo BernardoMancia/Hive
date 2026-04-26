@@ -66,6 +66,30 @@ const server = http.createServer((req, res) => {
     }
   }
 
+  if (url === '/admin/test-telegram' && req.method === 'POST') {
+    if (!TG_TOKEN || !TG_GROUP_ID) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: 'Telegram não configurado no servidor' }));
+    }
+    const dt = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: TG_GROUP_ID,
+        text: `🧪 *Teste do Admin Panel*\n⏰ ${dt}\n✅ Relay online — uptime: ${Math.floor(process.uptime())}s\n📊 RAM: ${Math.round(process.memoryUsage().rss/1024/1024)}MB`,
+        parse_mode: 'Markdown',
+      }),
+    }).then(r => r.json()).then(json => {
+      res.writeHead(json.ok ? 200 : 502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: json.ok, msgId: json.result?.message_id }));
+    }).catch(e => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    });
+    return;
+  }
+
   if (maintenanceMode && url !== '/health') {
     res.writeHead(503, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ status: 'maintenance', message: 'Relay em manutenção' }));

@@ -154,9 +154,86 @@
   ::-webkit-scrollbar { width:4px; }
   ::-webkit-scrollbar-track { background:transparent; }
   ::-webkit-scrollbar-thumb { background:rgba(255,255,255,.1); border-radius:2px; }
+
+  /* ── Login Overlay ──────────────────────────────────── */
+  #login-overlay {
+    position:fixed; inset:0; z-index:9999;
+    background:rgba(5,10,18,0.98);
+    display:flex; align-items:center; justify-content:center;
+    backdrop-filter:blur(8px);
+  }
+  #login-box {
+    background:var(--glass); border:1px solid var(--border-active);
+    border-radius:20px; padding:44px 40px; width:380px; max-width:95vw;
+    text-align:center; backdrop-filter:blur(20px);
+    box-shadow:0 0 80px rgba(0,212,255,0.15), 0 0 0 1px rgba(0,212,255,0.08);
+    animation:fadeInUp .4s ease;
+  }
+  @keyframes fadeInUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+  .login-logo { font-size:52px; margin-bottom:14px; }
+  #login-box h2 { font-size:22px; font-weight:800; letter-spacing:-.5px; margin-bottom:4px; }
+  #login-box .login-sub { color:var(--muted); font-size:13px; margin-bottom:28px; }
+  .login-input {
+    width:100%; padding:13px 16px; margin-bottom:12px;
+    background:rgba(255,255,255,0.05); border:1px solid var(--border);
+    border-radius:10px; color:var(--text); font-size:14px; font-family:'Inter',sans-serif;
+    outline:none; transition:border-color .2s;
+  }
+  .login-input:focus { border-color:var(--border-active); background:rgba(0,212,255,0.04); }
+  .login-error { color:var(--red); font-size:12px; margin:-4px 0 10px; min-height:16px; }
+  .login-btn {
+    width:100%; padding:13px; background:linear-gradient(135deg,var(--neon),var(--purple));
+    border:none; border-radius:10px; color:#000; font-weight:700; font-size:14px;
+    cursor:pointer; transition:all .2s; margin-top:4px; letter-spacing:.3px;
+  }
+  .login-btn:hover { opacity:0.88; transform:translateY(-1px); }
+  .reset-note { color:var(--yellow); font-size:12px; margin-bottom:18px; padding:10px 14px; background:rgba(255,211,42,.08); border-radius:8px; border:1px solid rgba(255,211,42,.2); }
+  .login-version { color:var(--muted); font-size:10px; margin-top:18px; }
+
+  /* ── Tests Card ─────────────────────────────────────── */
+  .test-row {
+    display:flex; align-items:center; gap:12px; padding:14px 0;
+    border-bottom:1px solid var(--border);
+  }
+  .test-row:last-child { border-bottom:none; }
+  .test-info { flex:1; min-width:130px; }
+  .test-name { display:block; font-size:13px; font-weight:600; color:var(--text); }
+  .test-desc { display:block; font-size:11px; color:var(--muted); margin-top:2px; }
+  .test-result { font-size:12px; min-width:130px; text-align:right; font-weight:600; color:var(--muted); font-family:monospace; }
+  .test-result.ok { color:var(--green); }
+  .test-result.fail { color:var(--red); }
+  .test-result.warn { color:var(--yellow); }
+  .run-all-btn { font-size:11px; padding:4px 10px; }
 </style>
 </head>
 <body>
+
+<!-- ── Login Overlay ────────────────────────────────────────────── -->
+<div id="login-overlay">
+  <div id="login-box">
+    <div class="login-logo">🐝</div>
+    <h2>Hive Admin Center</h2>
+    <p class="login-sub">Acesso restrito — autentique-se</p>
+
+    <!-- Formulário de Login -->
+    <div id="lf-login">
+      <input id="li-user" class="login-input" type="text" placeholder="Usuário" autocomplete="username"/>
+      <input id="li-pwd" class="login-input" type="password" placeholder="Senha" autocomplete="current-password"/>
+      <div id="li-err" class="login-error"></div>
+      <button class="login-btn" onclick="doLogin()">Entrar</button>
+      <div class="login-version">v3.0.6-alpha · Hive Relay</div>
+    </div>
+
+    <!-- Formulário de Reset (primeiro acesso) -->
+    <div id="lf-reset" style="display:none">
+      <div class="reset-note">🔐 Primeiro acesso — defina uma nova senha</div>
+      <input id="rp-new" class="login-input" type="password" placeholder="Nova senha (mín. 6 caracteres)"/>
+      <input id="rp-confirm" class="login-input" type="password" placeholder="Confirmar nova senha"/>
+      <div id="rp-err" class="login-error"></div>
+      <button class="login-btn" onclick="doResetPwd()">Salvar nova senha</button>
+    </div>
+  </div>
+</div>
 
 <header>
   <div class="logo">
@@ -171,6 +248,7 @@
       <div class="conn-dot" id="conn-dot"></div>
       <span id="conn-status">Conectando...</span>
     </div>
+    <button class="btn" style="font-size:12px;padding:6px 14px;opacity:.7" onclick="doLogout()">Sair</button>
   </div>
 </header>
 
@@ -271,6 +349,40 @@
     </div>
   </div>
 
+  <!-- Tests -->
+  <div class="card neon full">
+    <div class="card-header">
+      <div class="card-title">🧪 Testes do Sistema</div>
+      <button class="btn btn-primary run-all-btn" onclick="runAllTests()">▶ Executar Todos</button>
+    </div>
+    <div>
+      <div class="test-row">
+        <div class="test-info">
+          <span class="test-name">🔌 Health Check</span>
+          <span class="test-desc">Verifica se o relay responde em /health</span>
+        </div>
+        <div class="test-result" id="tr-health">—</div>
+        <button class="btn btn-primary" style="font-size:12px" onclick="testHealth()">Testar</button>
+      </div>
+      <div class="test-row">
+        <div class="test-info">
+          <span class="test-name">📡 GunDB WebSocket</span>
+          <span class="test-desc">Verifica conexão P2P com o relay</span>
+        </div>
+        <div class="test-result" id="tr-gun">—</div>
+        <button class="btn btn-primary" style="font-size:12px" onclick="testGun()">Testar</button>
+      </div>
+      <div class="test-row">
+        <div class="test-info">
+          <span class="test-name">📨 Telegram Bot</span>
+          <span class="test-desc">Envia mensagem de teste no grupo Telegram</span>
+        </div>
+        <div class="test-result" id="tr-tg">—</div>
+        <button class="btn btn-primary" style="font-size:12px" onclick="testTelegram()">Enviar teste</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Atividade -->
   <div class="card full">
     <div class="card-header">
@@ -288,6 +400,70 @@ const NAMESPACE = 'hive_v2';
 const HOST = location.host;
 const RELAY_WS = (location.protocol === 'https:' ? 'wss://' : 'ws://') + HOST + '/gun';
 const HEALTH_URL = location.origin + '/health';
+const TEST_TG_URL = location.origin + '/admin/test-telegram';
+
+// ── Auth ─────────────────────────────────────────────────────────
+(function initAuth() {
+  const DEFAULT_USER = 'Luke Arwolf';
+  const DEFAULT_PWD  = '123456789';
+  const STORE_PWD    = 'hive_admin_pwd';
+  const STORE_FIRST  = 'hive_admin_first_done';
+
+  const getStoredPwd = () => { const s = localStorage.getItem(STORE_PWD); return s ? atob(s) : DEFAULT_PWD; };
+  const isFirstAccess = () => !localStorage.getItem(STORE_FIRST);
+
+  window.doLogin = function() {
+    const user = document.getElementById('li-user').value.trim();
+    const pwd  = document.getElementById('li-pwd').value;
+    const err  = document.getElementById('li-err');
+    err.textContent = '';
+    if (user !== DEFAULT_USER || pwd !== getStoredPwd()) {
+      err.textContent = 'Usuário ou senha incorretos.';
+      document.getElementById('li-pwd').value = '';
+      return;
+    }
+    if (isFirstAccess()) {
+      document.getElementById('lf-login').style.display = 'none';
+      document.getElementById('lf-reset').style.display = 'block';
+    } else {
+      sessionStorage.setItem('hive_auth', '1');
+      document.getElementById('login-overlay').style.display = 'none';
+    }
+  };
+
+  window.doResetPwd = function() {
+    const np = document.getElementById('rp-new').value;
+    const cp = document.getElementById('rp-confirm').value;
+    const er = document.getElementById('rp-err');
+    er.textContent = '';
+    if (np.length < 6) { er.textContent = 'Mínimo 6 caracteres.'; return; }
+    if (np !== cp)     { er.textContent = 'As senhas não coincidem.'; return; }
+    localStorage.setItem(STORE_PWD, btoa(np));
+    localStorage.setItem(STORE_FIRST, '1');
+    sessionStorage.setItem('hive_auth', '1');
+    document.getElementById('login-overlay').style.display = 'none';
+  };
+
+  window.doLogout = function() {
+    sessionStorage.removeItem('hive_auth');
+    document.getElementById('li-user').value = '';
+    document.getElementById('li-pwd').value = '';
+    document.getElementById('li-err').textContent = '';
+    document.getElementById('lf-login').style.display = 'block';
+    document.getElementById('lf-reset').style.display = 'none';
+    document.getElementById('login-overlay').style.display = 'flex';
+  };
+
+  // Press Enter to submit
+  document.getElementById('li-pwd').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  document.getElementById('rp-confirm').addEventListener('keydown', e => { if (e.key === 'Enter') doResetPwd(); });
+
+  if (sessionStorage.getItem('hive_auth') === '1') {
+    document.getElementById('login-overlay').style.display = 'none';
+  } else {
+    document.getElementById('li-user').value = 'Luke Arwolf';
+  }
+})();
 
 let ctrlState = { maintenance: false, pauseMessaging: false };
 
@@ -378,6 +554,64 @@ async function fetchHealth() {
 }
 fetchHealth();
 setInterval(fetchHealth, 10000);
+
+// ── System Tests ─────────────────────────────────────────────────
+async function testHealth() {
+  const el = document.getElementById('tr-health');
+  el.textContent = '⏳ testando...'; el.className = 'test-result';
+  const t = Date.now();
+  try {
+    const r = await fetch(HEALTH_URL, { cache: 'no-store' });
+    const d = await r.json();
+    const ms = Date.now() - t;
+    el.textContent = `✅ ${d.status} · ${ms}ms`;
+    el.className = 'test-result ok';
+    addActivity('✅', `Health OK — ${ms}ms`);
+  } catch {
+    el.textContent = '❌ Sem resposta'; el.className = 'test-result fail';
+    addActivity('❌', 'Health FALHOU');
+  }
+}
+
+function testGun() {
+  const el = document.getElementById('tr-gun');
+  const online = document.getElementById('conn-dot').classList.contains('online');
+  if (online) {
+    el.textContent = '✅ P2P conectado'; el.className = 'test-result ok';
+    addActivity('📡', 'GunDB P2P — conectado');
+  } else {
+    el.textContent = '❌ Desconectado'; el.className = 'test-result fail';
+    addActivity('📡', 'GunDB P2P — FALHOU');
+  }
+}
+
+async function testTelegram() {
+  const el = document.getElementById('tr-tg');
+  el.textContent = '⏳ enviando...'; el.className = 'test-result';
+  const t = Date.now();
+  try {
+    const r = await fetch(TEST_TG_URL, { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) {
+      el.textContent = `✅ Enviado · ${Date.now()-t}ms`;
+      el.className = 'test-result ok';
+      addActivity('📨', 'Teste Telegram enviado com sucesso');
+    } else {
+      el.textContent = `❌ ${d.error || 'Falhou'}`;
+      el.className = 'test-result fail';
+      addActivity('❌', `Telegram falhou: ${d.error}`);
+    }
+  } catch {
+    el.textContent = '❌ Erro de rede'; el.className = 'test-result fail';
+    addActivity('❌', 'Teste Telegram — erro de rede');
+  }
+}
+
+async function runAllTests() {
+  await testHealth();
+  testGun();
+  await testTelegram();
+}
 
 // ── Usuários Online ──────────────────────────────────────────────
 gun.get(NAMESPACE).get('presence').map().on((data, peerId) => {
