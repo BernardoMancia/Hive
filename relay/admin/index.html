@@ -285,9 +285,9 @@
 
 <script>
 const NAMESPACE = 'hive_v2';
-const HOST = location.hostname + ':' + (location.port || '8765');
-const RELAY_WS = 'ws://' + HOST + '/gun';
-const HEALTH_URL = 'http://' + HOST + '/health';
+const HOST = location.host;
+const RELAY_WS = (location.protocol === 'https:' ? 'wss://' : 'ws://') + HOST + '/gun';
+const HEALTH_URL = location.origin + '/health';
 
 let ctrlState = { maintenance: false, pauseMessaging: false };
 
