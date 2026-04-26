@@ -22,7 +22,7 @@
         "backgroundColor": "#0A0A0F"
       },
       "softwareKeyboardLayoutMode": "adjustResize",
-      "package": "com.hive.chat",
+      "package": "com.cryptolabs.hive",
       "versionCode": 15,
       "permissions": [
         "android.permission.CAMERA",
