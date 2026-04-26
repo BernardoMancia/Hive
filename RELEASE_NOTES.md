@@ -17,6 +17,48 @@
 
 ---
 
+## v3.0.5-alpha · versionCode 14 · 2026-04-26
+
+**Fase:** Alpha — Correção de infraestrutura
+
+### O que há de novo
+
+- **Peer WebSocket na porta 80**: conexão GunDB migrada de `ws://82.112.245.99:8765` para `ws://82.112.245.99/gun` via nginx reverse proxy — resolve bloqueios de provedor em redes restritivas
+- **Nginx master_proxy**: configurado `hive.conf` no container Docker com `default_server` na porta 80, roteando `/gun`, `/admin` e `/health`
+- **IP de gateway correto**: proxy_pass atualizado de `172.17.0.1` para `172.21.0.1` (gateway real da rede Docker)
+
+### Infraestrutura
+
+- Admin panel `http://82.112.245.99/admin` acessível externamente ✅
+- Health check `http://82.112.245.99/health` com CORS ✅
+- WebSocket P2P na porta padrão 80 ✅
+
+---
+
+<pt-BR>
+Versão 3.0.5 Alpha — Correção de conectividade P2P
+
+**Correções:**
+• Conexão WebSocket com o relay migrada para a porta padrão 80 (evita bloqueios em redes restritas)
+• Painel administrativo agora acessível via HTTP padrão
+• Melhor compatibilidade de rede em ambientes corporativos e redes móveis
+
+⚠️ Esta é uma versão Alpha — pode conter instabilidades.
+</pt-BR>
+
+<en-US>
+Version 3.0.5 Alpha — P2P connectivity fix
+
+**Fixes:**
+• WebSocket connection migrated to standard port 80 (avoids blocks on restricted networks)
+• Admin panel now accessible via standard HTTP
+• Improved network compatibility in corporate and mobile environments
+
+⚠️ This is an Alpha release — may contain instabilities.
+</en-US>
+
+---
+
 ## v3.0.0-alpha · versionCode 9 · 2026-04-25
 
 **Fase:** Alpha (instável — em desenvolvimento ativo)
