@@ -17,6 +17,46 @@
 
 ---
 
+## v3.0.6-alpha · versionCode 15 · 2026-04-26
+
+**Fase:** Alpha — Painel Administrativo aprimorado
+
+### O que há de novo
+
+- **Tela de login** no Admin Center: usuário `Luke Arwolf`, senha padrão com reset obrigatório no primeiro acesso
+- **Testes do sistema**: Health Check, GunDB WebSocket e Telegram Bot com resultado em tempo real
+- **Comando de teste Telegram**: botão no painel envia mensagem de diagnóstico diretamente no grupo
+- **Logout**: botão de encerramento de sessão no header do painel
+- **Fix mixed-content**: URLs de health e WebSocket agora usam `location.origin` — funciona em HTTP e HTTPS sem hardcode de porta
+
+---
+
+<pt-BR>
+Versão 3.0.6 Alpha — Painel Admin com login e testes
+
+**Novidades:**
+• Tela de login com senha padrão e reset obrigatório no primeiro acesso
+• Painel de testes: Health Check, GunDB e Telegram com resposta em tempo real
+• Botão de envio de mensagem de teste para o grupo Telegram
+• Correção de conectividade no painel via HTTPS
+
+⚠️ Esta é uma versão Alpha — pode conter instabilidades.
+</pt-BR>
+
+<en-US>
+Version 3.0.6 Alpha — Admin Panel with login and system tests
+
+**What's new:**
+• Login screen with default password and mandatory reset on first access
+• System tests panel: Health Check, GunDB and Telegram with real-time feedback
+• Test message button to send diagnostics to the Telegram group
+• HTTPS connectivity fix in the admin panel
+
+⚠️ This is an Alpha release — may contain instabilities.
+</en-US>
+
+---
+
 ## v3.0.5-alpha · versionCode 14 · 2026-04-26
 
 **Fase:** Alpha — Correção de infraestrutura
