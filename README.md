@@ -16,12 +16,12 @@
 
 - **100% P2P Architecture** — no central server, each device sustains the network
 - **No Login Required** — pick a name, start chatting
-- **12 Themed Rooms** — from Tech & Gaming to Art & Travel
+- **Dynamic Channels** — rooms managed in real-time via the admin web panel
 - **Live Image Sharing** — send images directly P2P (base64, <200KB)
 - **Live Online Counter** — see how many peers are active
 - **Age-Gated Room** — +18 room with local verification prompt
 - **Privacy First** — messages sync between peers, never stored centrally
-- **Auto-Reconnect** — exponential backoff reconnection to public GunDB relays
+- **Auto-Reconnect** — exponential backoff reconnection to the self-hosted GunDB relay
 
 ### Tech Stack
 
@@ -46,10 +46,7 @@ Public GunDB relays are used **only for initial peer discovery**. All data syncs
 
 ### Active Relays
 
-- `https://peer.wallie.io/gun`
-- `https://relay.peer.ooo/gun`
-
-_No VPS. No proprietary server. No Heroku. Community-maintained only._
+- `ws://82.112.245.99/gun` (self-hosted relay)
 
 ### Namespace
 
@@ -82,23 +79,6 @@ Output:
 - APK: `android/app/build/outputs/apk/release/app-release.apk`
 - AAB: `android/app/build/outputs/bundle/release/app-release.aab`
 
-### Chat Rooms
-
-| # | Room | Topic |
-|---|------|-------|
-| 1 | 🌐 General | Open conversation |
-| 2 | 💻 Tech & Code | Programming |
-| 3 | 🎮 Gaming | Games & eSports |
-| 4 | 🎵 Music | Music discussion |
-| 5 | 🎬 Movies & TV | Films & series |
-| 6 | 📈 Crypto & Finance | Trading |
-| 7 | 🎨 Art & Design | Creative works |
-| 8 | 🏋️ Fitness & Health | Workouts |
-| 9 | 📚 Books & Knowledge | Reading |
-| 10 | 🌍 Travel | Destinations |
-| 11 | 🤣 Memes & Humor | Funny content |
-| 12 | 🔞 Free Zone (+18) | Adult content |
-
 ### Contributing
 
 1. Fork the repository
@@ -124,12 +104,12 @@ MIT
 
 - **Arquitetura 100% P2P** — sem servidor central, cada dispositivo sustenta a rede
 - **Sem Cadastro** — escolha um nome e comece a conversar
-- **12 Salas Temáticas** — de Tech & Games a Arte & Viagem
+- **Canais Dinâmicos** — salas gerenciadas em tempo real pelo painel web admin
 - **Compartilhamento de Imagens** — envio direto P2P (base64, <200KB)
 - **Contador de Peers Online** — veja quantos participantes estão sustentando a rede
 - **Sala com Controle de Idade** — sala +18 com verificação local
 - **Privacidade Total** — mensagens sincronizadas entre peers, nunca armazenadas centralmente
-- **Reconexão Automática** — backoff exponencial para relays GunDB públicos
+- **Reconexão Automática** — backoff exponencial para o relay GunDB auto-hospedado
 
 ### Stack Técnica
 
@@ -168,23 +148,6 @@ cd android
 Saída:
 - APK: `android/app/build/outputs/apk/release/app-release.apk`
 - AAB: `android/app/build/outputs/bundle/release/app-release.aab`
-
-### Salas de Chat
-
-| # | Sala | Tema |
-|---|------|------|
-| 1 | 🌐 Geral | Conversa aberta |
-| 2 | 💻 Tech & Código | Programação |
-| 3 | 🎮 Games | Jogos & eSports |
-| 4 | 🎵 Música | Discussão musical |
-| 5 | 🎬 Filmes & Séries | Cinema & streaming |
-| 6 | 📈 Cripto & Finanças | Trading |
-| 7 | 🎨 Arte & Design | Obras criativas |
-| 8 | 🏋️ Fitness & Saúde | Treinos |
-| 9 | 📚 Livros & Conhecimento | Leitura |
-| 10 | 🌍 Viagem | Destinos |
-| 11 | 🤣 Memes & Humor | Conteúdo engraçado |
-| 12 | 🔞 Zona Livre (+18) | Conteúdo adulto |
 
 ### Contribuindo
 
