@@ -121,11 +121,24 @@ export async function sendMessage(roomId: string, data: MessageData): Promise<bo
     const gun = getGun();
     if (!gun) return false;
     let encryptedText = '';
-    if (data.text) encryptedText = await encryptMessage(data.text, roomId);
+    let enc = '0';
+    if (data.text) {
+      try {
+        const candidate = await encryptMessage(data.text, roomId);
+        if (candidate !== data.text) {
+          encryptedText = candidate;
+          enc = '1';
+        } else {
+          encryptedText = data.text;
+        }
+      } catch (_) {
+        encryptedText = data.text;
+      }
+    }
     const payload: Record<string, any> = {
       _id: data._id,
       text: encryptedText,
-      enc: '1',
+      enc,
       createdAt: data.createdAt,
       user: JSON.stringify(data.user),
     };

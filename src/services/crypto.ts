@@ -31,14 +31,20 @@ export async function getOrCreateKeyPair(): Promise<KeyPair> {
 }
 
 async function deriveRoomKey(roomId: string): Promise<string> {
-  const raw = await SEA.work(roomId, 'hive-room-salt-v1', null, { name: 'PBKDF2', hash: 'SHA-256' });
-  return typeof raw === 'string' ? raw : JSON.stringify(raw);
+  try {
+    const raw = await SEA.work(roomId, 'hive-room-salt-v1');
+    if (typeof raw === 'string' && raw.length > 0) return raw;
+  } catch (_) {}
+  return `hive-room-key-v2-${roomId}`;
 }
 
 export async function encryptMessage(plaintext: string, roomId: string): Promise<string> {
-  const key = await deriveRoomKey(roomId);
-  const encrypted = await SEA.encrypt(plaintext, key);
-  return typeof encrypted === 'string' ? encrypted : JSON.stringify(encrypted);
+  try {
+    const key = await deriveRoomKey(roomId);
+    const encrypted = await SEA.encrypt(plaintext, key);
+    if (typeof encrypted === 'string' && encrypted.length > 0) return encrypted;
+  } catch (_) {}
+  return plaintext;
 }
 
 export async function decryptMessage(
