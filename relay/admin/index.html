@@ -721,15 +721,19 @@ function createRoom() {
 }
 
 function toggleRoom(id, archive) {
-  gun.get(NAMESPACE).get('admin').get('rooms').get(id).get('archived').put(archive);
-  if (rooms[id]) rooms[id].archived = archive;
+  if (!rooms[id]) return;
+  const updated = Object.assign({}, rooms[id], { archived: archive, deleted: false });
+  gun.get(NAMESPACE).get('admin').get('rooms').get(id).put(updated);
+  rooms[id] = updated;
   addActivity(archive ? '🗄️' : '♻️', `Canal <b>#${id}</b> ${archive ? 'arquivado' : 'restaurado'}`);
   renderRooms();
 }
 
 function deleteRoom(id) {
   if (!confirm(`Excluir canal #${id}?`)) return;
-  gun.get(NAMESPACE).get('admin').get('rooms').get(id).put(null);
+  const base = rooms[id] || { id };
+  const tombstone = Object.assign({}, base, { archived: true, deleted: true });
+  gun.get(NAMESPACE).get('admin').get('rooms').get(id).put(tombstone);
   delete rooms[id];
   addActivity('🗑️', `Canal <b>#${id}</b> excluído`);
   renderRooms();

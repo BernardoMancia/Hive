@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../theme/colors';
 import { RootStackParamList } from '../types';
-import { subscribeToMessages, sendMessage } from '../services/gun';
+import { subscribeToMessages, sendMessage, subscribeToServerCtrl, ServerCtrl } from '../services/gun';
 import { sendMediaMessage } from '../services/media';
 import {
   getUserId,
@@ -58,11 +58,13 @@ export default function ChatScreen({ navigation, route }: Props) {
   const [sending, setSending] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [inputText, setInputText] = useState('');
+  const [serverCtrl, setServerCtrl] = useState<ServerCtrl>({ maintenance: false, pauseMessaging: false });
 
   const isMounted = useRef(true);
   const seenIds = useRef(new Set<string>());
   const unsubMessages = useRef<(() => void) | null>(null);
   const unsubPresence = useRef<(() => void) | null>(null);
+  const unsubCtrl = useRef<(() => void) | null>(null);
   const userIdRef = useRef('');
   const userNameRef = useRef('Anonymous');
   const flatListRef = useRef<FlatList>(null);
@@ -73,10 +75,15 @@ export default function ChatScreen({ navigation, route }: Props) {
   useEffect(() => {
     isMounted.current = true;
     initChat();
+    const unsubC = subscribeToServerCtrl((ctrl) => {
+      if (isMounted.current) setServerCtrl(ctrl);
+    });
+    unsubCtrl.current = unsubC;
     return () => {
       isMounted.current = false;
       unsubMessages.current?.();
       unsubPresence.current?.();
+      unsubCtrl.current?.();
       setCurrentRoom(null);
     };
   }, []);
@@ -127,6 +134,7 @@ export default function ChatScreen({ navigation, route }: Props) {
   const handleSend = useCallback(async () => {
     const text = inputText.trim();
     if (!text || !userIdRef.current) return;
+    if (serverCtrl.maintenance || serverCtrl.pauseMessaging) return;
     const uid = userIdRef.current;
     const uname = userNameRef.current;
 
@@ -151,10 +159,10 @@ export default function ChatScreen({ navigation, route }: Props) {
       } else {
         setMessages(prev => prev.filter(m => m._id !== tempId));
         seenIds.current.delete(tempId);
-        Alert.alert('Falha no envio', 'Não foi possível enviar. Verifique a conexão e tente novamente.');
+        Alert.alert('Send Failed', 'Could not deliver message. Check your connection and try again.');
       }
     }
-  }, [inputText, room.id]);
+  }, [inputText, room.id, serverCtrl]);
 
   const pickAndSendImage = useCallback(async (source: 'gallery' | 'camera') => {
     Keyboard.dismiss();
@@ -178,13 +186,18 @@ export default function ChatScreen({ navigation, route }: Props) {
         setMessages(prev => [{ _id: sent._id, text: '', createdAt: sent.createdAt, user: sent.user, image: sent.image }, ...prev]);
       }
     } catch (e: any) {
-      if (isMounted.current) Alert.alert('Erro', e?.message || 'Falha ao enviar imagem.');
+      if (isMounted.current) Alert.alert('Error', e?.message || 'Failed to send image.');
     } finally {
       if (isMounted.current) setSending(false);
     }
   }, [room.id]);
 
   const isConnected = connStatus === 'connected';
+
+  const isChatBlocked = serverCtrl.maintenance || serverCtrl.pauseMessaging;
+  const blockReason = serverCtrl.maintenance
+    ? '🔴 Server under maintenance — messaging is temporarily unavailable'
+    : '⏸ Messaging is paused by the administrator';
 
   const renderMessage = useCallback(({ item }: { item: MessageItem }) => {
     const isOwn = item.user._id === userIdRef.current;
@@ -222,7 +235,7 @@ export default function ChatScreen({ navigation, route }: Props) {
         <Text style={s.roomIcon}>{room.icon}</Text>
         <View style={s.headerInfo}>
           <Text style={s.roomName} numberOfLines={1}>{room.name}</Text>
-          <Text style={s.roomSub}>{peerCount > 0 ? `${peerCount} peer${peerCount > 1 ? 's' : ''} neste canal` : 'Aguardando peers...'}</Text>
+          <Text style={s.roomSub}>{peerCount > 0 ? `${peerCount} peer${peerCount > 1 ? 's' : ''} in this channel` : 'Waiting for peers...'}</Text>
         </View>
         <View style={[s.connBadge, { backgroundColor: isConnected ? Colors.greenDim : Colors.redDim, borderColor: isConnected ? Colors.green : Colors.red }]}>
           <View style={[s.connDot, { backgroundColor: isConnected ? Colors.green : Colors.red }]} />
@@ -231,21 +244,21 @@ export default function ChatScreen({ navigation, route }: Props) {
 
       {!isConnected && (
         <TouchableOpacity style={s.banner} onPress={reconnect}>
-          <Text style={s.bannerText}>⚠ Sem conexão — toque para reconectar</Text>
+          <Text style={s.bannerText}>⚠ No connection — tap to reconnect</Text>
         </TouchableOpacity>
       )}
 
       {sending && (
         <View style={s.sendingBar}>
           <ActivityIndicator size="small" color={Colors.neon} />
-          <Text style={s.sendingText}>Enviando imagem P2P...</Text>
+          <Text style={s.sendingText}>Sending image P2P...</Text>
         </View>
       )}
 
       {!isReady ? (
         <View style={s.loading}>
           <ActivityIndicator size="large" color={Colors.neon} />
-          <Text style={s.loadingText}>Conectando aos peers...</Text>
+          <Text style={s.loadingText}>Connecting to peers...</Text>
         </View>
       ) : (
         <KeyboardAvoidingView
@@ -267,12 +280,17 @@ export default function ChatScreen({ navigation, route }: Props) {
             ListEmptyComponent={
               <View style={s.emptyWrap}>
                 <Text style={s.emptyIcon}>{room.icon}</Text>
-                <Text style={s.emptyTitle}>Nenhuma mensagem ainda</Text>
-                <Text style={s.emptySub}>Seja o primeiro a enviar uma mensagem{'\n'}neste canal. Ela expira em 1 hora.</Text>
+                <Text style={s.emptyTitle}>No messages yet</Text>
+                <Text style={s.emptySub}>Be the first to send a message{'\n'}in this channel. Messages expire in 1 hour.</Text>
               </View>
             }
           />
 
+          {isChatBlocked ? (
+            <View style={[s.blockedBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+              <Text style={s.blockedText}>{blockReason}</Text>
+            </View>
+          ) : (
           <View style={[s.inputBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
             <TouchableOpacity style={s.mediaBtn} onPress={() => pickAndSendImage('gallery')} disabled={sending} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={s.mediaIcon}>🖼</Text>
@@ -284,14 +302,13 @@ export default function ChatScreen({ navigation, route }: Props) {
               style={[s.input, !isConnected && { borderColor: Colors.red + '44' }]}
               value={inputText}
               onChangeText={setInputText}
-              placeholder={isConnected ? 'Mensagem...' : '⚠ Sem conexão...'}
+              placeholder={isConnected ? 'Message...' : '⚠ No connection...'}
               placeholderTextColor={isConnected ? Colors.textMuted : Colors.red + '88'}
               multiline
               maxLength={2000}
               returnKeyType="default"
               blurOnSubmit={false}
             />
-
             <TouchableOpacity
               style={[s.sendBtn, !inputText.trim() && s.sendBtnDisabled]}
               onPress={handleSend}
@@ -301,6 +318,7 @@ export default function ChatScreen({ navigation, route }: Props) {
               <Text style={s.sendIcon}>▶</Text>
             </TouchableOpacity>
           </View>
+          )}
         </KeyboardAvoidingView>
       )}
     </View>
@@ -398,4 +416,15 @@ const s = StyleSheet.create({
   },
   sendBtnDisabled: { opacity: 0.3 },
   sendIcon: { fontSize: 16, color: Colors.bg, marginLeft: 2 },
+  blockedBar: {
+    backgroundColor: 'rgba(255,71,87,0.15)',
+    borderTopWidth: 1, borderTopColor: 'rgba(255,71,87,0.4)',
+    paddingHorizontal: 20, paddingTop: 14,
+    alignItems: 'center', justifyContent: 'center',
+    minHeight: 64,
+  },
+  blockedText: {
+    fontSize: 13, fontWeight: '700',
+    color: Colors.red, textAlign: 'center', lineHeight: 20,
+  },
 });

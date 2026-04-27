@@ -212,14 +212,14 @@ export function subscribeToAdminRooms(
 
   const flush = () => {
     if (!active) return;
-    onUpdate(Object.values(cache).filter(r => !r.archived));
+    onUpdate(Object.values(cache).filter(r => !r.archived && !(r as any).deleted));
   };
 
   try {
     const node = getGun().get(NAMESPACE).get('admin').get('rooms');
     node.map().on((data: any, key: string) => {
       if (!active) return;
-      if (data === null || data === undefined) {
+      if (data === null || data === undefined || data.deleted === true) {
         delete cache[key];
       } else if (data && data.id) {
         cache[key] = data as AdminRoom;
@@ -233,6 +233,34 @@ export function subscribeToAdminRooms(
     };
   } catch (e) {
     console.warn('[Hive:gun] subscribeToAdminRooms error:', e);
+    return () => { active = false; };
+  }
+}
+
+export interface ServerCtrl {
+  maintenance: boolean;
+  pauseMessaging: boolean;
+}
+
+export function subscribeToServerCtrl(
+  onUpdate: (ctrl: ServerCtrl) => void
+): () => void {
+  let active = true;
+  try {
+    const node = getGun().get(NAMESPACE).get('admin').get('ctrl');
+    node.on((data: any) => {
+      if (!active || !data) return;
+      onUpdate({
+        maintenance: !!data.maintenance,
+        pauseMessaging: !!data.pauseMessaging,
+      });
+    });
+    return () => {
+      active = false;
+      try { node.off(); } catch (_) {}
+    };
+  } catch (e) {
+    console.warn('[Hive:gun] subscribeToServerCtrl error:', e);
     return () => { active = false; };
   }
 }
