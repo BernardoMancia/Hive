@@ -26,7 +26,8 @@ import {
   initPresence,
   getUserId,
 } from '../services/presence';
-import { resetGun } from '../services/gun';
+import { resetGun, subscribeToAdminRooms } from '../services/gun';
+import type { AdminRoom } from '../services/gun';
 import { useConnectionStatus } from '../services/connection';
 
 type Props = {
@@ -41,9 +42,12 @@ export default function HomeScreen({ navigation }: Props) {
   const [showNameModal, setShowNameModal] = useState(false);
   const [newName, setNewName] = useState('');
   const [savingName, setSavingName] = useState(false);
+  const [displayRooms, setDisplayRooms] = useState<ChatRoom[]>(ROOMS);
+  const [roomsReady, setRoomsReady] = useState(false);
 
   const isMounted = useRef(true);
   const unsubPresence = useRef<(() => void) | null>(null);
+  const unsubRooms = useRef<(() => void) | null>(null);
   const insets = useSafeAreaInsets();
   const { status: connStatus, reconnect } = useConnectionStatus();
 
@@ -52,15 +56,48 @@ export default function HomeScreen({ navigation }: Props) {
     setCurrentRoom('lobby');
     loadUserName();
     attachPresence();
+    attachAdminRooms();
     return () => {
       isMounted.current = false;
       unsubPresence.current?.();
+      unsubRooms.current?.();
     };
   }, []);
 
   const loadUserName = async () => {
     const name = await getUserName();
     if (name && isMounted.current) setCurrentName(name);
+  };
+
+  const attachAdminRooms = () => {
+    unsubRooms.current?.();
+    const fallbackTimer = setTimeout(() => {
+      if (!isMounted.current) return;
+      if (!roomsReady) setDisplayRooms(ROOMS);
+    }, 3000);
+
+    const unsub = subscribeToAdminRooms((adminRooms: AdminRoom[]) => {
+      if (!isMounted.current) return;
+      clearTimeout(fallbackTimer);
+      setRoomsReady(true);
+      if (adminRooms.length === 0) {
+        setDisplayRooms(ROOMS);
+        return;
+      }
+      const mapped: ChatRoom[] = adminRooms.map((ar) => {
+        const existing = ROOMS.find(r => r.id === ar.id);
+        return {
+          id: ar.id,
+          name: ar.name,
+          description: ar.desc || existing?.description || '',
+          icon: ar.icon || existing?.icon || '💬',
+          isAdult: existing?.isAdult ?? false,
+          color: existing?.color || '#00d4ff',
+        };
+      });
+      setDisplayRooms(mapped);
+    });
+    unsubRooms.current = unsub;
   };
 
   const attachPresence = () => {
@@ -78,10 +115,11 @@ export default function HomeScreen({ navigation }: Props) {
     setRefreshing(true);
     try {
       unsubPresence.current?.();
+      unsubRooms.current?.();
       resetGun();
       const [userId, name] = await Promise.all([getUserId(), getUserName()]);
       if (name && isMounted.current) await initPresence(userId, name);
-      if (isMounted.current) attachPresence();
+      if (isMounted.current) { attachPresence(); attachAdminRooms(); }
     } catch (_) {}
     if (isMounted.current) setTimeout(() => { if (isMounted.current) setRefreshing(false); }, 800);
   }, []);
@@ -177,7 +215,7 @@ export default function HomeScreen({ navigation }: Props) {
       </View>
 
       <FlatList
-        data={ROOMS}
+        data={displayRooms}
         keyExtractor={r => r.id}
         renderItem={renderRoom}
         contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 24 }]}

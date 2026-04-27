@@ -177,7 +177,6 @@ export function subscribeToMessages(
         try {
           const dec = await decryptMessage(text, roomId);
           if (dec !== null && dec !== undefined) text = dec;
-          // se decrypt falhar, mantém texto raw (pode ser versão antiga ou erro de chave)
         } catch (_) {}
       }
 
@@ -196,3 +195,46 @@ export function subscribeToMessages(
     return () => { active = false; };
   }
 }
+
+export interface AdminRoom {
+  id: string;
+  name: string;
+  icon: string;
+  desc: string;
+  archived: boolean;
+  createdAt: number;
+}
+
+export function subscribeToAdminRooms(
+  onUpdate: (rooms: AdminRoom[]) => void
+): () => void {
+  let active = true;
+  const cache: Record<string, AdminRoom> = {};
+
+  const flush = () => {
+    if (!active) return;
+    onUpdate(Object.values(cache).filter(r => !r.archived));
+  };
+
+  try {
+    const node = getGun().get(NAMESPACE).get('admin').get('rooms');
+    node.map().on((data: any, key: string) => {
+      if (!active) return;
+      if (data === null || data === undefined) {
+        delete cache[key];
+      } else if (data && data.id) {
+        cache[key] = data as AdminRoom;
+      }
+      flush();
+    });
+
+    return () => {
+      active = false;
+      try { node.map().off(); } catch (_) {}
+    };
+  } catch (e) {
+    console.warn('[Hive:gun] subscribeToAdminRooms error:', e);
+    return () => { active = false; };
+  }
+}
+
