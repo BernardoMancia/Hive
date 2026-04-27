@@ -43,7 +43,6 @@ export default function HomeScreen({ navigation }: Props) {
   const [newName, setNewName] = useState('');
   const [savingName, setSavingName] = useState(false);
   const [displayRooms, setDisplayRooms] = useState<ChatRoom[]>(ROOMS);
-  const [roomsReady, setRoomsReady] = useState(false);
 
   const isMounted = useRef(true);
   const unsubPresence = useRef<(() => void) | null>(null);
@@ -71,15 +70,17 @@ export default function HomeScreen({ navigation }: Props) {
 
   const attachAdminRooms = () => {
     unsubRooms.current?.();
+    let resolved = false;
+
     const fallbackTimer = setTimeout(() => {
-      if (!isMounted.current) return;
-      if (!roomsReady) setDisplayRooms(ROOMS);
+      if (!isMounted.current || resolved) return;
+      setDisplayRooms(ROOMS);
     }, 3000);
 
     const unsub = subscribeToAdminRooms((adminRooms: AdminRoom[]) => {
       if (!isMounted.current) return;
       clearTimeout(fallbackTimer);
-      setRoomsReady(true);
+      resolved = true;
       if (adminRooms.length === 0) {
         setDisplayRooms(ROOMS);
         return;
@@ -226,7 +227,7 @@ export default function HomeScreen({ navigation }: Props) {
         ListFooterComponent={
           <View style={s.footer}>
             <Text style={s.footerText}>⬡ P2P · zero dados · TTL 1h</Text>
-            <Text style={s.footerVersion}>v3.0.1-alpha</Text>
+            <Text style={s.footerVersion}>v3.1.0-alpha</Text>
           </View>
         }
       />

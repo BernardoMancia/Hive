@@ -78,7 +78,6 @@ export function getGun(): any {
   return gunInstance!;
 }
 
-// Heartbeat: mantém conexão viva mesmo sem mensagens
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 function startHeartbeat(): void {
   if (heartbeatTimer) clearInterval(heartbeatTimer);
@@ -237,4 +236,3 @@ export function subscribeToAdminRooms(
     return () => { active = false; };
   }
 }
-
