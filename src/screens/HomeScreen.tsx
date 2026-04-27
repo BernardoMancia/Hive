@@ -227,7 +227,7 @@ export default function HomeScreen({ navigation }: Props) {
         ListFooterComponent={
           <View style={s.footer}>
             <Text style={s.footerText}>⬡ P2P · zero dados · TTL 1h</Text>
-            <Text style={s.footerVersion}>v3.1.0-alpha</Text>
+            <Text style={s.footerVersion}>v3.1.0-beta</Text>
           </View>
         }
       />
