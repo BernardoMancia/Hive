@@ -70,8 +70,8 @@ export default function WelcomeScreen({ navigation }: Props) {
 
   const handleEnter = async () => {
     const trimmed = name.trim();
-    if (trimmed.length < 2) { Alert.alert('Nome inválido', 'Mínimo 2 caracteres.'); return; }
-    if (trimmed.length > 20) { Alert.alert('Nome inválido', 'Máximo 20 caracteres.'); return; }
+    if (trimmed.length < 2) { Alert.alert('Invalid name', 'Minimum 2 characters.'); return; }
+    if (trimmed.length > 20) { Alert.alert('Invalid name', 'Maximum 20 characters.'); return; }
     setJoining(true);
     try {
       await setUserName(trimmed);
@@ -79,7 +79,7 @@ export default function WelcomeScreen({ navigation }: Props) {
       await initPresence(userId, trimmed);
       if (isMounted.current) navigation.replace('Home');
     } catch (_) {
-      if (isMounted.current) { Alert.alert('Erro', 'Tente novamente.'); setJoining(false); }
+      if (isMounted.current) { Alert.alert('Error', 'Please try again.'); setJoining(false); }
     }
   };
 
@@ -116,13 +116,13 @@ export default function WelcomeScreen({ navigation }: Props) {
         </View>
 
         <Text style={s.title}>Hive</Text>
-        <Text style={s.subtitle}>Chat P2P encriptado{'\n'}zero dados armazenados</Text>
+        <Text style={s.subtitle}>Encrypted P2P Chat{'\n'}zero data stored</Text>
 
         <View style={[s.inputWrap, focused && s.inputWrapFocused]}>
           <Text style={s.inputIcon}>👤</Text>
           <TextInput
             style={s.input}
-            placeholder="Como quer ser chamado?"
+            placeholder="What's your name?"
             placeholderTextColor={Colors.textMuted}
             value={name}
             onChangeText={setName}
@@ -145,15 +145,15 @@ export default function WelcomeScreen({ navigation }: Props) {
         >
           {joining
             ? <ActivityIndicator size="small" color={Colors.bg} />
-            : <Text style={s.btnText}>Entrar na Hive →</Text>
+            : <Text style={s.btnText}>Join Hive →</Text>
           }
         </TouchableOpacity>
 
         <View style={s.pills}>
           {[
-            { icon: '🔒', label: 'E2E cifrado' },
-            { icon: '👻', label: 'Sem registro' },
-            { icon: '💨', label: 'TTL 1 hora' },
+            { icon: '🔒', label: 'E2E Encrypted' },
+            { icon: '👻', label: 'No Sign-Up' },
+            { icon: '💨', label: '1h TTL' },
           ].map(p => (
             <View key={p.label} style={s.pill}>
               <Text style={s.pillIcon}>{p.icon}</Text>

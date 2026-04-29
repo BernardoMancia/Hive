@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, Animated, StyleSheet, StatusBar, ActivityIndicator } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -50,23 +50,23 @@ export default function AgeVerificationScreen({ navigation, route }: Props) {
           <Text style={s.icon}>🔞</Text>
         </View>
 
-        <Text style={s.title}>Conteúdo +18</Text>
+        <Text style={s.title}>18+ Content</Text>
         <Text style={s.desc}>
-          O canal <Text style={s.roomName}>"{room.name}"</Text> contém conteúdo exclusivo para maiores de 18 anos.
+          The channel <Text style={s.roomName}>"{room.name}"</Text> contains content exclusively for adults aged 18 and over.
         </Text>
         <Text style={s.warn}>
-          Ao continuar, você declara ter 18 anos ou mais e assume plena responsabilidade pelo acesso a este conteúdo.
+          By continuing, you confirm that you are 18 or older and take full responsibility for accessing this content.
         </Text>
 
         <View style={s.btns}>
           <TouchableOpacity style={[s.confirmBtn, confirming && { opacity: 0.6 }]} onPress={handleConfirm} disabled={confirming} activeOpacity={0.85}>
             {confirming
               ? <ActivityIndicator size="small" color="#FFF" />
-              : <Text style={s.confirmTxt}>Tenho 18+ anos, entrar</Text>
+              : <Text style={s.confirmTxt}>I am 18+, enter</Text>
             }
           </TouchableOpacity>
           <TouchableOpacity style={s.cancelBtn} onPress={() => navigation.goBack()} disabled={confirming} activeOpacity={0.85}>
-            <Text style={s.cancelTxt}>Voltar</Text>
+            <Text style={s.cancelTxt}>Go Back</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>

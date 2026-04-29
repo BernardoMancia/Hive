@@ -103,7 +103,7 @@ export default function HomeScreen({ navigation }: Props) {
 
   const attachPresence = () => {
     unsubPresence.current?.();
-    const unsub = subscribeToPresence((count, counts) => {
+    const unsub = subscribeToPresence((count, counts, _peers) => {
       if (!isMounted.current) return;
       setOnlineCount(count);
       setRoomCounts(counts);
@@ -135,8 +135,8 @@ export default function HomeScreen({ navigation }: Props) {
 
   const handleSaveName = async () => {
     const trimmed = newName.trim();
-    if (trimmed.length < 2) { Alert.alert('Nome inválido', 'Mínimo 2 caracteres.'); return; }
-    if (trimmed.length > 20) { Alert.alert('Nome inválido', 'Máximo 20 caracteres.'); return; }
+    if (trimmed.length < 2) { Alert.alert('Invalid name', 'Minimum 2 characters.'); return; }
+    if (trimmed.length > 20) { Alert.alert('Invalid name', 'Maximum 20 characters.'); return; }
     setSavingName(true);
     try {
       await setUserName(trimmed);
@@ -144,7 +144,7 @@ export default function HomeScreen({ navigation }: Props) {
       await initPresence(userId, trimmed);
       if (isMounted.current) { setCurrentName(trimmed); setShowNameModal(false); }
     } catch (_) {
-      if (isMounted.current) Alert.alert('Erro', 'Tente novamente.');
+      if (isMounted.current) Alert.alert('Error', 'Please try again.');
     } finally {
       if (isMounted.current) setSavingName(false);
     }
@@ -190,7 +190,7 @@ export default function HomeScreen({ navigation }: Props) {
           <Text style={s.logo}>🐝</Text>
           <View>
             <Text style={s.title}>Hive</Text>
-            <Text style={s.subtitle}>Chat P2P cifrado</Text>
+            <Text style={s.subtitle}>Encrypted P2P Chat</Text>
           </View>
         </View>
         <View style={s.headerRight}>
@@ -203,12 +203,12 @@ export default function HomeScreen({ navigation }: Props) {
 
       {!isConnected && (
         <TouchableOpacity style={s.banner} onPress={reconnect}>
-          <Text style={s.bannerText}>⚠ Sem conexão — toque para reconectar</Text>
+          <Text style={s.bannerText}>⚠ No connection — tap to reconnect</Text>
         </TouchableOpacity>
       )}
 
       <View style={s.subHeader}>
-        <Text style={s.subTitle}>Canais</Text>
+        <Text style={s.subTitle}>Channels</Text>
         <TouchableOpacity style={s.nameChip} onPress={() => { setNewName(currentName); setShowNameModal(true); }}>
           <Text style={s.nameText} numberOfLines={1}>👤 {currentName || '...'}</Text>
           <Text style={s.nameEdit}> ✎</Text>
@@ -226,7 +226,7 @@ export default function HomeScreen({ navigation }: Props) {
         }
         ListFooterComponent={
           <View style={s.footer}>
-            <Text style={s.footerText}>⬡ P2P · zero dados · TTL 1h</Text>
+            <Text style={s.footerText}>⬡ P2P · zero data · TTL 1h</Text>
             <Text style={s.footerVersion}>v3.1.0-beta</Text>
           </View>
         }
@@ -235,13 +235,13 @@ export default function HomeScreen({ navigation }: Props) {
       <Modal visible={showNameModal} transparent animationType="fade" onRequestClose={() => setShowNameModal(false)}>
         <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowNameModal(false)}>
           <TouchableOpacity activeOpacity={1} style={s.modal} onPress={() => {}}>
-            <Text style={s.modalTitle}>Alterar nome</Text>
-            <Text style={s.modalSub}>Como os outros peers te verão</Text>
+            <Text style={s.modalTitle}>Change name</Text>
+            <Text style={s.modalSub}>How other peers will see you</Text>
             <TextInput
               style={s.modalInput}
               value={newName}
               onChangeText={setNewName}
-              placeholder="Seu nome..."
+              placeholder="Your name..."
               placeholderTextColor={Colors.textMuted}
               maxLength={20}
               autoCapitalize="words"
@@ -252,14 +252,14 @@ export default function HomeScreen({ navigation }: Props) {
             />
             <View style={s.modalBtns}>
               <TouchableOpacity style={s.modalCancel} onPress={() => setShowNameModal(false)}>
-                <Text style={s.modalCancelTxt}>Cancelar</Text>
+                <Text style={s.modalCancelTxt}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[s.modalSave, (newName.trim().length < 2 || savingName) && s.modalSaveDisabled]}
                 onPress={handleSaveName}
                 disabled={newName.trim().length < 2 || savingName}
               >
-                {savingName ? <ActivityIndicator size="small" color={Colors.bg} /> : <Text style={s.modalSaveTxt}>Salvar</Text>}
+                {savingName ? <ActivityIndicator size="small" color={Colors.bg} /> : <Text style={s.modalSaveTxt}>Save</Text>}
               </TouchableOpacity>
             </View>
           </TouchableOpacity>

@@ -17,6 +17,37 @@
 
 ---
 
+## v3.1.1-stable · versionCode 17 · 2026-04-29
+
+**Fase:** Stable — Revisão de Tipagem e UI
+
+### O que há de novo
+
+- **Correção de Tipagem UI**: As propriedades de temas (`Colors`, `Typography`) que estavam apontando para referências inexistentes foram corrigidas em múltiplos componentes (RoomCard, MediaMessage, OnlineCounter, PeerStatus).
+- **Estabilidade do App**: Garantia de renderização segura dos gradientes e cores sem causar crash por undefined.
+
+---
+
+<pt-BR>
+Versão 3.1.1 Stable — Revisão de UI e Estabilidade
+
+**Melhorias:**
+• Correções de cores e fontes não declaradas nos cartões de sala e nos indicadores online.
+• Maior fluidez de interface e prevenção de erros em tempo de execução.
+• O aplicativo está consolidado e preparado para produção sem problemas de compilação.
+</pt-BR>
+
+<en-US>
+Version 3.1.1 Stable — UI Review and Stability
+
+**Improvements:**
+• Fixed undeclared colors and fonts in room cards and online indicators.
+• Increased UI fluidity and prevention of runtime errors.
+• The application is consolidated and ready for production with no compilation issues.
+</en-US>
+
+---
+
 ## v3.0.6-alpha · versionCode 15 · 2026-04-26
 
 **Fase:** Alpha — Painel Administrativo aprimorado

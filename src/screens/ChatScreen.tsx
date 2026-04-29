@@ -169,7 +169,7 @@ export default function ChatScreen({ navigation, route }: Props) {
     const perm = source === 'gallery'
       ? await ImagePicker.requestMediaLibraryPermissionsAsync()
       : await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) { Alert.alert('Permissão necessária', 'Permita o acesso para enviar imagens.'); return; }
+    if (!perm.granted) { Alert.alert('Permission required', 'Please allow access to send images.'); return; }
 
     const result = source === 'gallery'
       ? await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.25 })
