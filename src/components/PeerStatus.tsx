@@ -81,7 +81,7 @@ export default function PeerStatus({ peerCount, isConnected = true }: PeerStatus
           <View style={[styles.offlineDot, { backgroundColor: dotColor }]} />
         )}
       </View>
-      <Text style={[styles.text, { color: !isConnected ? Colors.offline : Colors.primaryLight }]}>
+      <Text style={[styles.text, { color: !isConnected ? Colors.offline : Colors.primary }]}>
         {statusText}
       </Text>
     </Animated.View>

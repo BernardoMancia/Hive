@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
   },
   description: {
     ...Typography.caption,
-    color: Colors.textSecondary,
+    color: Colors.textSub,
   },
   adultBadge: {
     backgroundColor: Colors.adult,
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   adultBadgeText: {
-    ...Typography.badge,
+    ...Typography.captionBold,
     color: '#FFFFFF',
   },
   peerSection: {

@@ -75,6 +75,6 @@ const styles = StyleSheet.create({
   },
   videoLabel: {
     ...Typography.caption,
-    color: Colors.textSecondary,
+    color: Colors.textSub,
   },
 });

@@ -144,6 +144,6 @@ const styles = StyleSheet.create({
   },
   label: {
     ...Typography.caption,
-    color: Colors.textSecondary,
+    color: Colors.textSub,
   },
 });
