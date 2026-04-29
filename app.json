@@ -2,7 +2,7 @@
   "expo": {
     "name": "Hive",
     "slug": "hive-chat",
-    "version": "3.1.0",
+    "version": "3.1.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -23,7 +23,7 @@
       },
       "softwareKeyboardLayoutMode": "adjustResize",
       "package": "com.cryptolabs.hive",
-      "versionCode": 16,
+      "versionCode": 17,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
