@@ -33,6 +33,9 @@ const msgTracker  = {};
 let maintenanceMode  = false;
 let messagingPaused  = false;
 
+// Online users via WebSocket connections
+let onlineUsers = 0;
+
 // ── HTTP Server ───────────────────────────────────────────────────
 const server = http.createServer((req, res) => {
   const url = req.url.split('?')[0];
@@ -51,6 +54,7 @@ const server = http.createServer((req, res) => {
       telegram: TG_TOKEN ? 'configured' : 'disabled',
       tracked: scheduled.size,
       maintenanceMode, messagingPaused,
+      onlineUsers,
       stats,
     }));
   }
@@ -99,6 +103,13 @@ const server = http.createServer((req, res) => {
   res.end('Hive Relay | RAM only | E2E | TTL 24h');
 });
 
+// ── WebSocket connection tracking ────────────────────────────────
+server.on('upgrade', (_req, socket) => {
+  onlineUsers++;
+  socket.on('close', () => { onlineUsers = Math.max(0, onlineUsers - 1); });
+  socket.on('error', () => { onlineUsers = Math.max(0, onlineUsers - 1); });
+});
+
 // ── Gun ──────────────────────────────────────────────────────────
 const gun = Gun({
   web: server,
@@ -107,13 +118,14 @@ const gun = Gun({
 });
 
 // Admin control listener (escrita pelo painel web)
-let lastClearTs = 0;
+let lastClearTs    = 0;
+let lastDeleteChan = '';
 gun.get(NAMESPACE).get('admin').get('ctrl').on((data) => {
   if (!data) return;
-  maintenanceMode  = !!data.maintenance;
-  messagingPaused  = !!data.pauseMessaging;
+  maintenanceMode = !!data.maintenance;
+  messagingPaused = !!data.pauseMessaging;
 
-  // clearChat: disparado pelo painel web
+  // clearChat
   const clearTs = Number(data.clearChat) || 0;
   if (clearTs && clearTs !== lastClearTs) {
     lastClearTs = clearTs;
@@ -130,6 +142,22 @@ gun.get(NAMESPACE).get('admin').get('ctrl').on((data) => {
     tgSeen.clear();
     console.log(`[Admin] clearChat: ${total} mensagens removidas`);
     if (TG_GROUP_ID) tgSend(TG_GROUP_ID, `🗑 *Chat limpo via painel web*\n${total} mensagens removidas.`);
+  }
+
+  // deleteChannel: apaga todas as mensagens do canal e sinaliza remoção
+  const delChan = data.deleteChannel || '';
+  if (delChan && delChan !== lastDeleteChan) {
+    lastDeleteChan = delChan;
+    const keys = msgTracker[delChan] ? Object.keys(msgTracker[delChan]) : [];
+    keys.forEach(msgKey => {
+      gun.get(NAMESPACE).get('rooms').get(delChan).get(msgKey).put(null);
+      const tid = scheduled.get(msgKey);
+      if (tid) { clearTimeout(tid); scheduled.delete(msgKey); }
+    });
+    if (msgTracker[delChan]) delete msgTracker[delChan];
+    gun.get(NAMESPACE).get('admin').get('rooms').get(delChan).put({ id: delChan, deleted: true, name: delChan });
+    console.log(`[Admin] deleteChannel: ${delChan} (${keys.length} msgs removed)`);
+    if (TG_GROUP_ID) tgSend(TG_GROUP_ID, `🗑 *Canal deletado:* \`${delChan}\``);
   }
 
   console.log(`[Ctrl] maintenance=${maintenanceMode} pauseMsg=${messagingPaused}`);
@@ -325,23 +353,26 @@ gun.get(NAMESPACE).get('rooms').map().on((_roomData, roomId) => {
 
     scheduleExpiry(roomId, msgKey, msgData.createdAt);
 
-    // Tracker para /clearchat
     if (!msgTracker[roomId]) msgTracker[roomId] = {};
     msgTracker[roomId][msgKey] = true;
 
     stats.messages++;
 
-    // Telegram: apenas imagens novas (< 60s) e não duplicadas
-    if (msgData.image && !tgSeen.has(msgKey)) {
+    if (!tgSeen.has(msgKey)) {
       tgSeen.add(msgKey);
       const age = Date.now() - Number(msgData.createdAt);
-      if (age < MAX_MSG_AGE) {
+      if (age < MAX_MSG_AGE && TG_GROUP_ID) {
         let userName = 'Desconhecido';
         try {
           const u = typeof msgData.user === 'string' ? JSON.parse(msgData.user) : msgData.user;
           userName = u?.name || userName;
         } catch (_) {}
-        sendMediaToTelegram(msgData.image, userName, roomId, msgData.createdAt);
+        if (msgData.image) {
+          sendMediaToTelegram(msgData.image, userName, roomId, msgData.createdAt);
+        } else if (msgData.text) {
+          const dt = new Date(Number(msgData.createdAt)).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+          tgSend(TG_GROUP_ID, `💬 *Nova mensagem*\n👤 *De:* ${userName}\n💬 *Canal:* \`${roomId}\`\n📝 ${String(msgData.text).slice(0, 200)}\n🕐 ${dt}`);
+        }
       }
     }
   });
