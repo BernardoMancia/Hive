@@ -94,14 +94,14 @@ Version 3.0.6 Alpha — Admin Panel with login and system tests
 
 ### O que há de novo
 
-- **Peer WebSocket na porta 80**: conexão GunDB migrada de `ws://82.112.245.99:8765` para `ws://82.112.245.99/gun` via nginx reverse proxy — resolve bloqueios de provedor em redes restritivas
+- **Peer WebSocket na porta 80**: conexão GunDB migrada para `wss://fogoeluar.com.br/gun` via nginx reverse proxy — resolve bloqueios de provedor em redes restritivas
 - **Nginx master_proxy**: configurado `hive.conf` no container Docker com `default_server` na porta 80, roteando `/gun`, `/admin` e `/health`
 - **IP de gateway correto**: proxy_pass atualizado de `172.17.0.1` para `172.21.0.1` (gateway real da rede Docker)
 
 ### Infraestrutura
 
-- Admin panel `http://82.112.245.99/admin` acessível externamente ✅
-- Health check `http://82.112.245.99/health` com CORS ✅
+- Admin panel `https://fogoeluar.com.br/admin` acessível externamente ✅
+- Health check `https://fogoeluar.com.br/health` com CORS ✅
 - WebSocket P2P na porta padrão 80 ✅
 
 ---

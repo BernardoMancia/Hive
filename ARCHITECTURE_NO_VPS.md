@@ -22,7 +22,7 @@ Toda a comunicação ocorre diretamente entre os dispositivos dos usuários (pee
 
 | Proibição | Motivo |
 |---|---|
-| ❌ Qualquer IP privado ou VPS próprio (ex: `82.112.245.99`) | Cria dependência central e ponto único de falha |
+| ❌ Qualquer IP privado ou VPS próprio | Cria dependência central e ponto único de falha |
 | ❌ Relay auto-hospedado (mesmo que em cloud: AWS, GCP, DigitalOcean próprio) | Viola o modelo P2P — o operador controla o tráfego |
 | ❌ Backend REST, GraphQL ou WebSocket próprio | Centralização explícita |
 | ❌ Firebase, Supabase, PocketBase ou qualquer BaaS | Centralização em terceiro |
