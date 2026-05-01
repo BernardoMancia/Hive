@@ -556,7 +556,7 @@ const DEFAULT_ROOMS = [
 ];
 
 gun.get(NAMESPACE).get('admin').get('rooms').map().on((data, key) => {
-  if (data === null) delete rooms[key];
+  if (data === null || data?.deleted === true) delete rooms[key];
   else if (data && data.id) rooms[key] = data;
   renderRooms();
 });
@@ -564,7 +564,13 @@ gun.get(NAMESPACE).get('admin').get('rooms').map().on((data, key) => {
 setTimeout(() => {
   if (firstLoad) {
     firstLoad = false;
-    DEFAULT_ROOMS.forEach(r => { if (!rooms[r.id]) rooms[r.id] = r; });
+    DEFAULT_ROOMS.forEach(r => {
+      if (!rooms[r.id]) {
+        const room = Object.assign({}, r, { archived: false, createdAt: Date.now() });
+        gun.get(NAMESPACE).get('admin').get('rooms').get(r.id).put(room);
+        rooms[r.id] = room;
+      }
+    });
     renderRooms();
   }
 }, 2000);

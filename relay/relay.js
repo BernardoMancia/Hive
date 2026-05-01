@@ -111,10 +111,15 @@ server.on('upgrade', (_req, socket) => {
 });
 
 // ── Gun ──────────────────────────────────────────────────────────
+const RADATA = path.join(__dirname, 'radata');
+try { fs.mkdirSync(RADATA, { recursive: true }); } catch (_) {}
+
 const gun = Gun({
   web: server,
-  file: false, localStorage: false, radisk: false,
-  multicast: false, axe: false,
+  file: RADATA,
+  localStorage: false,
+  multicast: false,
+  axe: false,
 });
 
 // Admin control listener (escrita pelo painel web)
