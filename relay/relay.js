@@ -111,6 +111,7 @@ server.on('upgrade', (_req, socket) => {
 });
 
 // ── Gun ──────────────────────────────────────────────────────────
+try { process.chdir(__dirname); } catch (_) {}
 const RADATA = path.join(__dirname, 'radata');
 try { fs.mkdirSync(RADATA, { recursive: true }); } catch (_) {}
 
@@ -144,7 +145,6 @@ gun.get(NAMESPACE).get('admin').get('ctrl').on((data) => {
       }
     }
     Object.keys(msgTracker).forEach(k => delete msgTracker[k]);
-    tgSeen.clear();
     console.log(`[Admin] clearChat: ${total} mensagens removidas`);
     if (TG_GROUP_ID) tgSend(TG_GROUP_ID, `🗑 *Chat limpo via painel web*\n${total} mensagens removidas.`);
   }
@@ -339,7 +339,6 @@ async function handleBotCommand(msg) {
       }
     }
     Object.keys(msgTracker).forEach(k => delete msgTracker[k]);
-    tgSeen.clear();
     await tgSend(chatId, `🗑 *Chat limpo!*\n${total} mensagem(ns) removidas de todos os canais.`);
     return;
   }
@@ -350,10 +349,12 @@ async function sendMenu(chatId) {
 }
 
 // ── Gun message listener ─────────────────────────────────────────
+const statsSeen = new Set();
 gun.get(NAMESPACE).get('rooms').map().on((_roomData, roomId) => {
   if (!roomId || typeof roomId !== 'string') return;
   gun.get(NAMESPACE).get('rooms').get(roomId).map().on((msgData, msgKey) => {
     if (!msgData || !msgKey || !msgData.createdAt) return;
+    if (typeof msgData !== 'object') return;
     if (messagingPaused) return;
 
     scheduleExpiry(roomId, msgKey, msgData.createdAt);
@@ -361,7 +362,7 @@ gun.get(NAMESPACE).get('rooms').map().on((_roomData, roomId) => {
     if (!msgTracker[roomId]) msgTracker[roomId] = {};
     msgTracker[roomId][msgKey] = true;
 
-    stats.messages++;
+    if (!statsSeen.has(msgKey)) { statsSeen.add(msgKey); stats.messages++; }
 
     if (!tgSeen.has(msgKey)) {
       tgSeen.add(msgKey);

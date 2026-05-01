@@ -1,16 +1,18 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { sendMessage } from './gun';
 
-const MAX_SIZE_BYTES = 400 * 1024;
-const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+const MAX_SIZE_BYTES = 2 * 1024 * 1024;
+const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'mov', 'avi'];
+const VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi'];
 const MAX_RETRIES = 3;
 
 function getExtension(uri: string): string {
   return uri.split('.').pop()?.toLowerCase().split('?')[0] ?? '';
 }
 
-async function copyToCache(uri: string): Promise<string> {
-  const tmpUri = `${FileSystem.cacheDirectory}hive_img_${Date.now()}.jpg`;
+async function copyToCache(uri: string, ext: string): Promise<string> {
+  const suffix = VIDEO_EXTENSIONS.includes(ext) ? ext : 'jpg';
+  const tmpUri = `${FileSystem.cacheDirectory}hive_media_${Date.now()}.${suffix}`;
   await FileSystem.copyAsync({ from: uri, to: tmpUri });
   return tmpUri;
 }
@@ -28,7 +30,7 @@ async function readWithRetry(uri: string): Promise<string> {
       await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
     }
   }
-  throw lastError ?? new Error('Falha ao ler imagem após 3 tentativas.');
+  throw lastError ?? new Error('Falha ao ler arquivo após 3 tentativas.');
 }
 
 export async function sendMediaMessage(
@@ -41,12 +43,13 @@ export async function sendMediaMessage(
   text: string;
   createdAt: number;
   user: { _id: string; name: string };
-  image: string;
+  image?: string;
+  video?: string;
 }> {
-  if (type === 'video') throw new Error('Vídeo não suportado no modo P2P.');
-
-  const ext = getExtension(uri) || 'jpg';
+  const ext = getExtension(uri) || (type === 'video' ? 'mp4' : 'jpg');
   if (!ALLOWED_EXTENSIONS.includes(ext)) throw new Error(`Formato não suportado: .${ext}`);
+
+  const isVideo = type === 'video' || VIDEO_EXTENSIONS.includes(ext);
 
   let workUri = uri;
   let tmpCreated: string | null = null;
@@ -55,37 +58,44 @@ export async function sendMediaMessage(
     const fileInfo = await FileSystem.getInfoAsync(uri);
 
     if (!fileInfo.exists || typeof (fileInfo as any).size !== 'number') {
-      workUri = await copyToCache(uri);
+      workUri = await copyToCache(uri, ext);
       tmpCreated = workUri;
     } else if ((fileInfo as any).size > MAX_SIZE_BYTES) {
-      const sizeKB = Math.round((fileInfo as any).size / 1024);
-      const limitKB = Math.round(MAX_SIZE_BYTES / 1024);
-      throw new Error(`Imagem muito grande (${sizeKB}KB). Máximo: ${limitKB}KB.`);
+      const sizeMB = ((fileInfo as any).size / 1024 / 1024).toFixed(1);
+      const limitMB = (MAX_SIZE_BYTES / 1024 / 1024).toFixed(0);
+      throw new Error(`Arquivo muito grande (${sizeMB}MB). Máximo: ${limitMB}MB.`);
     }
 
     if (!tmpCreated) {
-      tmpCreated = await copyToCache(workUri);
+      tmpCreated = await copyToCache(workUri, ext);
       workUri = tmpCreated;
     }
 
     const copiedInfo = await FileSystem.getInfoAsync(workUri);
-    if (!copiedInfo.exists) throw new Error('Falha ao copiar imagem para cache.');
+    if (!copiedInfo.exists) throw new Error('Falha ao copiar arquivo para cache.');
     if (typeof (copiedInfo as any).size === 'number' && (copiedInfo as any).size > MAX_SIZE_BYTES) {
-      const sizeKB = Math.round((copiedInfo as any).size / 1024);
-      throw new Error(`Imagem muito grande após processamento (${sizeKB}KB).`);
+      const sizeMB = ((copiedInfo as any).size / 1024 / 1024).toFixed(1);
+      throw new Error(`Arquivo muito grande após processamento (${sizeMB}MB).`);
     }
 
     const mimeMap: Record<string, string> = {
       jpg: 'image/jpeg', jpeg: 'image/jpeg',
       png: 'image/png', gif: 'image/gif', webp: 'image/webp',
+      mp4: 'video/mp4', mov: 'video/quicktime', avi: 'video/x-msvideo',
     };
-    const mime = mimeMap[ext] ?? 'image/jpeg';
+    const mime = mimeMap[ext] ?? (isVideo ? 'video/mp4' : 'image/jpeg');
 
     const base64 = await readWithRetry(workUri);
     const dataUri = `data:${mime};base64,${base64}`;
 
     const messageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-    const messageData = { _id: messageId, text: '', createdAt: Date.now(), user, image: dataUri };
+    const messageData: any = { _id: messageId, text: '', createdAt: Date.now(), user };
+
+    if (isVideo) {
+      messageData.video = dataUri;
+    } else {
+      messageData.image = dataUri;
+    }
 
     let success = false;
     for (let i = 0; i < MAX_RETRIES; i++) {

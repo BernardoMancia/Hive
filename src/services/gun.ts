@@ -113,6 +113,7 @@ export interface MessageData {
   createdAt: number;
   user: { _id: string; name: string };
   image?: string;
+  video?: string;
 }
 
 export async function sendMessage(roomId: string, data: MessageData): Promise<boolean> {
@@ -142,6 +143,7 @@ export async function sendMessage(roomId: string, data: MessageData): Promise<bo
       user: JSON.stringify(data.user),
     };
     if (data.image) payload.image = data.image;
+    if (data.video) payload.video = data.video;
     gun.get(NAMESPACE).get('rooms').get(roomId).get(data._id).put(payload);
     return true;
   } catch (e) {
@@ -182,7 +184,7 @@ export function subscribeToMessages(
       let user: { _id: string; name: string } = { _id: 'unknown', name: 'Unknown' };
       try { user = typeof data.user === 'string' ? JSON.parse(data.user) : data.user; } catch (_) {}
 
-      onMessage({ _id: data._id, text, createdAt: data.createdAt, user, image: data.image });
+      onMessage({ _id: data._id, text, createdAt: data.createdAt, user, image: data.image, video: data.video });
     });
 
     return () => {

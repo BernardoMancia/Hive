@@ -36,6 +36,7 @@ type MessageItem = {
   createdAt: number;
   user: { _id: string; name: string };
   image?: string;
+  video?: string;
   pending?: boolean;
   sent?: boolean;
   confirmed?: boolean;
@@ -115,7 +116,7 @@ export default function ChatScreen({ navigation, route }: Props) {
           seenIds.current.add(msg._id);
           setMessages(prev => {
             if (prev.some(m => m._id === msg._id)) return prev;
-            return [{ _id: msg._id, text: msg.text || '', createdAt: msg.createdAt, user: msg.user, image: msg.image }, ...prev];
+            return [{ _id: msg._id, text: msg.text || '', createdAt: msg.createdAt, user: msg.user, image: msg.image, video: msg.video }, ...prev];
           });
         },
         (deletedId) => {
@@ -172,18 +173,20 @@ export default function ChatScreen({ navigation, route }: Props) {
     if (!perm.granted) { Alert.alert('Permission required', 'Please allow access to send images.'); return; }
 
     const result = source === 'gallery'
-      ? await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.25 })
-      : await ImagePicker.launchCameraAsync({ quality: 0.25 });
+      ? await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.5, videoMaxDuration: 30 })
+      : await ImagePicker.launchCameraAsync({ mediaTypes: ['images', 'videos'], quality: 0.5, videoMaxDuration: 30 });
 
     if (result.canceled || !result.assets?.[0]?.uri) return;
     if (!isMounted.current) return;
 
     setSending(true);
     try {
-      const sent = await sendMediaMessage(room.id, result.assets[0].uri, 'image', { _id: userIdRef.current, name: userNameRef.current });
+      const asset = result.assets[0];
+      const mediaType = asset.type === 'video' ? 'video' : 'image';
+      const sent = await sendMediaMessage(room.id, asset.uri, mediaType, { _id: userIdRef.current, name: userNameRef.current });
       if (isMounted.current && !seenIds.current.has(sent._id)) {
         seenIds.current.add(sent._id);
-        setMessages(prev => [{ _id: sent._id, text: '', createdAt: sent.createdAt, user: sent.user, image: sent.image }, ...prev]);
+        setMessages(prev => [{ _id: sent._id, text: '', createdAt: sent.createdAt, user: sent.user, image: sent.image, video: sent.video }, ...prev]);
       }
     } catch (e: any) {
       if (isMounted.current) Alert.alert('Error', e?.message || 'Failed to send image.');
@@ -212,6 +215,11 @@ export default function ChatScreen({ navigation, route }: Props) {
           {!isOwn && <Text style={s.senderName}>{item.user.name}</Text>}
           {item.image ? (
             <Image source={{ uri: item.image }} style={s.msgImage} resizeMode="cover" />
+          ) : item.video ? (
+            <View style={s.videoPlaceholder}>
+              <Text style={s.videoIcon}>🎬</Text>
+              <Text style={s.videoText}>Video</Text>
+            </View>
           ) : (
             <Text style={s.msgText}>{item.text}</Text>
           )}
@@ -386,6 +394,9 @@ const s = StyleSheet.create({
   senderName: { fontSize: 11, fontWeight: '700', color: Colors.neon, marginBottom: 4, letterSpacing: 0.3 },
   msgText: { fontSize: 15, color: Colors.text, lineHeight: 21 },
   msgImage: { width: 200, height: 200, borderRadius: 12, marginVertical: 4 },
+  videoPlaceholder: { width: 200, height: 140, borderRadius: 12, marginVertical: 4, backgroundColor: 'rgba(0,212,255,0.1)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(0,212,255,0.2)' },
+  videoIcon: { fontSize: 36, marginBottom: 4 },
+  videoText: { fontSize: 12, color: Colors.textMuted, fontWeight: '600' },
   msgMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 5, gap: 3 },
   msgMetaRight: { justifyContent: 'flex-end' },
   msgMetaLeft: { justifyContent: 'flex-start' },
