@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { sendMessage } from './gun';
 
-const MAX_SIZE_BYTES = 2 * 1024 * 1024;
+const MAX_SIZE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'mov', 'avi'];
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi'];
 const MAX_RETRIES = 3;
