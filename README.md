@@ -16,21 +16,26 @@
 
 - **100% P2P Architecture** — no central server, each device sustains the network
 - **No Login Required** — pick a name, start chatting
-- **Dynamic Channels** — rooms managed in real-time via the admin web panel
-- **Live Image Sharing** — send images directly P2P (base64, <200KB)
+- **Dynamic Channels** — 12 rooms managed in real-time via the admin web panel
+- **Media Sharing** — send images and videos P2P (up to 10MB)
+- **End-to-End Encryption** — SEA (Security, Encryption, Authorization) per room
+- **Fullscreen Media Viewer** — tap any image or video to view fullscreen
+- **Inline Video Player** — play videos directly in chat with native controls
+- **Screenshot Protection** — FLAG_SECURE blocks screenshots and screen recording
 - **Live Online Counter** — see how many peers are active
 - **Age-Gated Room** — +18 room with local verification prompt
-- **Privacy First** — messages sync between peers, never stored centrally
-- **Auto-Reconnect** — exponential backoff reconnection to the self-hosted GunDB relay
+- **Privacy First** — messages sync between peers with 24h TTL auto-expiry
+- **Auto-Reconnect** — exponential backoff reconnection via secure WSS
 
 ### Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Framework | React Native 0.81 + Expo SDK 54 |
-| P2P Database | GunDB (public community relays) |
+| Framework | React Native 0.81 + Expo SDK 52 |
+| P2P Database | GunDB (self-hosted relay) |
+| Encryption | GunDB SEA (per-room key derivation) |
 | Navigation | React Navigation 7 |
-| Chat UI | react-native-gifted-chat |
+| Video | expo-av |
 | Media | expo-image-picker + expo-file-system |
 | Storage | AsyncStorage (local only) |
 
@@ -46,7 +51,7 @@ Public GunDB relays are used **only for initial peer discovery**. All data syncs
 
 ### Active Relays
 
-- `ws://82.112.245.99/gun` (self-hosted relay)
+- `wss://fogoeluar.com.br/gun` (self-hosted relay via Nginx + TLS 1.3)
 
 ### Namespace
 
@@ -104,21 +109,26 @@ MIT
 
 - **Arquitetura 100% P2P** — sem servidor central, cada dispositivo sustenta a rede
 - **Sem Cadastro** — escolha um nome e comece a conversar
-- **Canais Dinâmicos** — salas gerenciadas em tempo real pelo painel web admin
-- **Compartilhamento de Imagens** — envio direto P2P (base64, <200KB)
-- **Contador de Peers Online** — veja quantos participantes estão sustentando a rede
+- **Canais Dinâmicos** — 12 salas gerenciadas em tempo real pelo painel web admin
+- **Compartilhamento de Mídia** — envio de imagens e vídeos P2P (até 10MB)
+- **Criptografia E2E** — SEA (Security, Encryption, Authorization) por sala
+- **Visualizador Fullscreen** — toque em qualquer imagem ou vídeo para ver em tela cheia
+- **Player de Vídeo Inline** — reproduza vídeos diretamente no chat
+- **Proteção contra Screenshot** — FLAG_SECURE bloqueia capturas de tela e gravação
+- **Contador de Peers Online** — veja quantos participantes estão na rede
 - **Sala com Controle de Idade** — sala +18 com verificação local
-- **Privacidade Total** — mensagens sincronizadas entre peers, nunca armazenadas centralmente
-- **Reconexão Automática** — backoff exponencial para o relay GunDB auto-hospedado
+- **Privacidade Total** — mensagens sincronizadas entre peers com expiração automática em 24h
+- **Reconexão Automática** — backoff exponencial via WSS seguro
 
 ### Stack Técnica
 
 | Camada | Tecnologia |
 |---|---|
-| Framework | React Native 0.81 + Expo SDK 54 |
-| Banco P2P | GunDB (relays públicos da comunidade) |
+| Framework | React Native 0.81 + Expo SDK 52 |
+| Banco P2P | GunDB (relay auto-hospedado) |
+| Criptografia | GunDB SEA (derivação de chave por sala) |
 | Navegação | React Navigation 7 |
-| UI de Chat | react-native-gifted-chat |
+| Vídeo | expo-av |
 | Mídia | expo-image-picker + expo-file-system |
 | Armazenamento | AsyncStorage (apenas local) |
 
