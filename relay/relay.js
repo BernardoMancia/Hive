@@ -126,13 +126,24 @@ const gun = Gun({
 // Admin control listener (escrita pelo painel web)
 let lastClearTs    = 0;
 let lastDeleteChan = '';
+let booting = true;
+setTimeout(() => { booting = false; }, 5000);
+
 gun.get(NAMESPACE).get('admin').get('ctrl').on((data) => {
   if (!data) return;
   maintenanceMode = !!data.maintenance;
   messagingPaused = !!data.pauseMessaging;
 
-  // clearChat
   const clearTs = Number(data.clearChat) || 0;
+  const delChan = data.deleteChannel || '';
+
+  if (booting) {
+    lastClearTs = clearTs;
+    lastDeleteChan = delChan;
+    console.log(`[Boot] Ctrl state loaded: clearChat=${clearTs} deleteChannel=${delChan}`);
+    return;
+  }
+
   if (clearTs && clearTs !== lastClearTs) {
     lastClearTs = clearTs;
     let total = 0;
@@ -149,8 +160,6 @@ gun.get(NAMESPACE).get('admin').get('ctrl').on((data) => {
     if (TG_GROUP_ID) tgSend(TG_GROUP_ID, `🗑 *Chat limpo via painel web*\n${total} mensagens removidas.`);
   }
 
-  // deleteChannel: apaga todas as mensagens do canal e sinaliza remoção
-  const delChan = data.deleteChannel || '';
   if (delChan && delChan !== lastDeleteChan) {
     lastDeleteChan = delChan;
     const keys = msgTracker[delChan] ? Object.keys(msgTracker[delChan]) : [];
