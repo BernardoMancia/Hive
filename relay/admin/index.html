@@ -541,11 +541,18 @@ function renderUsers() {
 
 // ── Canais ──────────────────────────────────────────────────────
 const DEFAULT_ROOMS = [
-  {id:'general', name:'General', icon:'🌐', desc:'Canal geral'},
-  {id:'tech', name:'Tech & Code', icon:'💻', desc:'Programação'},
-  {id:'gaming', name:'Gaming', icon:'🎮', desc:'Jogos'},
+  {id:'general', name:'General', icon:'🌐', desc:'Open conversation'},
+  {id:'tech', name:'Tech & Code', icon:'💻', desc:'Programming'},
+  {id:'gaming', name:'Gaming', icon:'🎮', desc:'Games & eSports'},
+  {id:'music', name:'Music', icon:'🎵', desc:'Music discussion'},
+  {id:'cinema', name:'Movies & TV', icon:'🎬', desc:'Films and series'},
   {id:'crypto', name:'Crypto & Finance', icon:'📈', desc:'Trading'},
-  {id:'music', name:'Music', icon:'🎵', desc:'Música'},
+  {id:'art', name:'Art & Design', icon:'🎨', desc:'Creative works'},
+  {id:'fitness', name:'Fitness & Health', icon:'🏋️', desc:'Workouts'},
+  {id:'books', name:'Books & Knowledge', icon:'📚', desc:'Reading'},
+  {id:'travel', name:'Travel', icon:'🌍', desc:'Destinations'},
+  {id:'memes', name:'Memes & Humor', icon:'🤣', desc:'Funny content'},
+  {id:'adult', name:'Free Zone (+18)', icon:'🔞', desc:'Adult content'},
 ];
 
 gun.get(NAMESPACE).get('admin').get('rooms').map().on((data, key) => {
