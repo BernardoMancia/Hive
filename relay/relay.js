@@ -140,7 +140,7 @@ gun.get(NAMESPACE).get('admin').get('ctrl').on((data) => {
   if (booting) {
     lastClearTs = clearTs;
     lastDeleteChan = delChan;
-    console.log(`[Boot] Ctrl state loaded: clearChat=${clearTs} deleteChannel=${delChan}`);
+    console.log(`[Boot] Ctrl state loaded: clearChat=${clearTs} deleteChannel=${delChan} maintenance=${maintenanceMode} pauseMsg=${messagingPaused}`);
     return;
   }
 
@@ -222,9 +222,30 @@ async function sendMediaToTelegram(imageData, userName, roomId, createdAt) {
       method: 'POST', body: form, headers: form.getHeaders(), timeout: 15000,
     });
     const json = await res.json();
-    if (json.ok) { stats.media++; console.log(`[TG] media from ${userName} in ${roomId}`); }
+    if (json.ok) { stats.media++; console.log(`[TG] image from ${userName} in ${roomId}`); }
     else console.warn('[TG] sendPhoto error:', json.description);
   } catch (e) { console.warn('[TG] sendPhoto failed:', e.message); }
+}
+
+async function sendVideoToTelegram(videoData, userName, roomId, createdAt) {
+  if (!TG_TOKEN || !TG_GROUP_ID || !videoData) return;
+  try {
+    const dt      = new Date(Number(createdAt)).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const caption = `🎬 *Vídeo enviado*\n👤 *De:* ${userName}\n💬 *Canal:* ${roomId}\n🕐 ${dt}`;
+    const base64  = videoData.replace(/^data:video\/\w+;base64,/, '');
+    const buffer  = Buffer.from(base64, 'base64');
+    const form    = new FormData();
+    form.append('chat_id', TG_GROUP_ID);
+    form.append('caption', caption);
+    form.append('parse_mode', 'Markdown');
+    form.append('video', buffer, { filename: 'hive_video.mp4', contentType: 'video/mp4' });
+    const res  = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendVideo`, {
+      method: 'POST', body: form, headers: form.getHeaders(), timeout: 30000,
+    });
+    const json = await res.json();
+    if (json.ok) { stats.media++; console.log(`[TG] video from ${userName} in ${roomId}`); }
+    else console.warn('[TG] sendVideo error:', json.description);
+  } catch (e) { console.warn('[TG] sendVideo failed:', e.message); }
 }
 
 function formatUptime(ms) {
@@ -384,6 +405,8 @@ gun.get(NAMESPACE).get('rooms').map().on((_roomData, roomId) => {
         } catch (_) {}
         if (msgData.image) {
           sendMediaToTelegram(msgData.image, userName, roomId, msgData.createdAt);
+        } else if (msgData.video) {
+          sendVideoToTelegram(msgData.video, userName, roomId, msgData.createdAt);
         } else if (msgData.text) {
           const dt = new Date(Number(msgData.createdAt)).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
           tgSend(TG_GROUP_ID, `💬 *Nova mensagem*\n👤 *De:* ${userName}\n💬 *Canal:* \`${roomId}\`\n📝 ${String(msgData.text).slice(0, 200)}\n🕐 ${dt}`);
@@ -392,6 +415,11 @@ gun.get(NAMESPACE).get('rooms').map().on((_roomData, roomId) => {
     }
   });
 });
+
+setInterval(() => {
+  if (tgSeen.size > 5000) { tgSeen.clear(); console.log('[GC] tgSeen cleared'); }
+  if (statsSeen.size > 5000) { statsSeen.clear(); console.log('[GC] statsSeen cleared'); }
+}, 60 * 60 * 1000);
 
 // ── Bot polling ──────────────────────────────────────────────────
 let pollOffset = 0;

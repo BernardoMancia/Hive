@@ -78,14 +78,6 @@ export function getGun(): any {
   return gunInstance!;
 }
 
-let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-function startHeartbeat(): void {
-  if (heartbeatTimer) clearInterval(heartbeatTimer);
-  heartbeatTimer = setInterval(() => {
-    try { if (gunInstance && currentStatus === 'connected') gunInstance.get('_hb').put(Date.now()); }
-    catch (_) {}
-  }, 25000);
-}
 
 export function resetGun(): void {
   clearReconnectTimer();
@@ -93,7 +85,6 @@ export function resetGun(): void {
   isInitializing = false;
   notifyStatus('reconnecting');
   createGunInstance();
-  startHeartbeat();
 }
 
 export function onConnectionStatusChange(listener: StatusListener): () => void {
@@ -105,7 +96,6 @@ export function onConnectionStatusChange(listener: StatusListener): () => void {
 export function getConnectionStatus(): ConnectionState { return currentStatus; }
 
 createGunInstance();
-startHeartbeat();
 
 export interface MessageData {
   _id: string;

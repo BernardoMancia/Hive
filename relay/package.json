@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "form-data": "^4.0.0",
-    "gun": "^0.2020.1240",
+    "gun": "^0.2020.1241",
     "node-fetch": "^2.7.0"
   },
   "engines": {

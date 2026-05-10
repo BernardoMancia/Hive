@@ -31,7 +31,7 @@
 
 | Layer | Technology |
 |---|---|
-| Framework | React Native 0.81 + Expo SDK 52 |
+| Framework | React Native 0.81 + Expo SDK 54 |
 | P2P Database | GunDB (self-hosted relay) |
 | Encryption | GunDB SEA (per-room key derivation) |
 | Navigation | React Navigation 7 |
@@ -124,7 +124,7 @@ MIT
 
 | Camada | Tecnologia |
 |---|---|
-| Framework | React Native 0.81 + Expo SDK 52 |
+| Framework | React Native 0.81 + Expo SDK 54 |
 | Banco P2P | GunDB (relay auto-hospedado) |
 | Criptografia | GunDB SEA (derivação de chave por sala) |
 | Navegação | React Navigation 7 |

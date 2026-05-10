@@ -208,9 +208,12 @@ export default function ChatScreen({ navigation, route }: Props) {
     ? '🔴 Servidor em manutenção'
     : '⏸ Mensagens pausadas pelo admin';
 
+  const messagesRef = useRef<MessageItem[]>([]);
+  messagesRef.current = messages;
+
   const renderMessage = useCallback(({ item, index }: { item: MessageItem; index: number }) => {
     const isOwn = item.user._id === userIdRef.current;
-    const nextMsg = messages[index + 1];
+    const nextMsg = messagesRef.current[index + 1];
     const sameSenderAsNext = nextMsg && nextMsg.user._id === item.user._id;
     const showName = !isOwn && !sameSenderAsNext;
     const showTail = !sameSenderAsNext;
@@ -287,7 +290,7 @@ export default function ChatScreen({ navigation, route }: Props) {
         </View>
       </View>
     );
-  }, [messages, openMedia]);
+  }, [openMedia]);
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
@@ -348,7 +351,7 @@ export default function ChatScreen({ navigation, route }: Props) {
               <View style={s.emptyWrap}>
                 <Text style={s.emptyIcon}>{room.icon}</Text>
                 <Text style={s.emptyTitle}>Sem mensagens</Text>
-                <Text style={s.emptySub}>Seja o primeiro a enviar uma mensagem.{'\n'}Mensagens expiram em 24h.</Text>
+                <Text style={s.emptySub}>Seja o primeiro a enviar uma mensagem.{'\n'}Mensagens expiram em 1h.</Text>
               </View>
             }
           />
