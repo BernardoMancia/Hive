@@ -17,6 +17,158 @@
 
 ---
 
+## v3.2.3-stable · versionCode 22 · 2026-05-29
+
+**Phase:** Stable — Code Review Cleanup + VPS Media Engine
+
+### What's new
+
+- **VPS Media Upload Engine** — files >1MB upload silently to VPS; GunDB carries only the URL reference (prevents OOM on large videos)
+- **Unified TTL** — standardized to 1 hour across app and relay (was 1h app / 24h relay)
+- **Full English UI** — all Portuguese strings translated to English
+- **EAS Removed** — eas.json deleted, EAS references cleaned from app.json
+- **Code Review Cleanup** — 900+ lines of dead code removed, 6 orphan components deleted
+- **Unified Versioning** — v3.2.3 across package.json, app.json, and UI
+- **Type Unification** — ConnectionState type consolidated into single definition
+- **Relay URL Externalized** — moved from hardcoded to app.json extra config
+- **README Rewrite** — bilingual documentation reflecting hybrid P2P+Relay architecture
+
+---
+
+<pt-BR>
+Versão 3.2.3 Stable — Limpeza de Código + Motor de Mídia VPS
+
+**Novidades:**
+• Motor de upload de mídia para VPS — arquivos >1MB fazem upload silencioso, GunDB carrega apenas URL
+• TTL unificado para 1 hora em app e relay
+• Interface 100% em inglês — todas as strings traduzidas
+• EAS completamente removido do projeto
+• Limpeza de código: 900+ linhas removidas, 6 componentes órfãos deletados
+• Versionamento unificado v3.2.3
+• Tipos TypeScript consolidados
+• URL do relay externalizada para configuração
+• README reescrito com documentação bilíngue
+</pt-BR>
+
+<en-US>
+Version 3.2.3 Stable — Code Review Cleanup + VPS Media Engine
+
+**What's new:**
+• VPS media upload engine — files >1MB upload silently to server, GunDB carries only URL
+• Unified TTL to 1 hour across app and relay
+• Full English UI — all strings translated
+• EAS completely removed from project
+• Code cleanup: 900+ dead lines removed, 6 orphan components deleted
+• Unified versioning v3.2.3
+• TypeScript types consolidated
+• Relay URL externalized to configuration
+• README rewritten with bilingual documentation
+</en-US>
+
+---
+
+## v3.2.2-stable · versionCode 21 · 2026-05-25
+
+**Phase:** Stable — Telegram Chat UI
+
+### What's new
+
+- **Telegram-style Chat UI** — redesigned message bubbles with sender names, avatars, and delivery status
+- **Fullscreen Media Viewer** — tap any image or video to view fullscreen with native controls
+- **Inline Video Player** — play videos directly in chat
+- **Relay Boot Guard** — prevents replaying old admin control commands on restart
+
+---
+
+<pt-BR>
+Versão 3.2.2 Stable — UI estilo Telegram
+
+**Novidades:**
+• UI de chat estilo Telegram com bolhas redesenhadas, nomes de remetentes e status de entrega
+• Visualizador fullscreen de mídia
+• Player de vídeo inline no chat
+• Proteção contra replay de comandos antigos no boot do relay
+</pt-BR>
+
+<en-US>
+Version 3.2.2 Stable — Telegram-style Chat UI
+
+**What's new:**
+• Telegram-style chat UI with redesigned bubbles, sender names, and delivery status
+• Fullscreen media viewer
+• Inline video player in chat
+• Relay boot guard prevents old command replay
+</en-US>
+
+---
+
+## v3.2.1-stable · versionCode 20 · 2026-05-22
+
+**Phase:** Stable — Media & Relay Fixes
+
+### What's new
+
+- **Relay chdir + dedup** — relay changes to its own directory and deduplicates data
+- **Video support** — full video sending and playback in chat
+- **clearChat fix** — clearing chat no longer re-sends deleted messages
+- **Media limit** — increased to 10MB for inline base64
+
+---
+
+<pt-BR>
+Versão 3.2.1 Stable — Correções de Mídia e Relay
+
+**Correções:**
+• Relay usa diretório explícito e deduplica dados
+• Suporte completo a vídeo no chat
+• Limpeza de chat não reenvia mensagens deletadas
+• Limite de mídia aumentado para 10MB
+</pt-BR>
+
+<en-US>
+Version 3.2.1 Stable — Media & Relay Fixes
+
+**Fixes:**
+• Relay uses explicit directory and deduplicates data
+• Full video support in chat
+• Chat clearing no longer re-sends deleted messages
+• Media limit increased to 10MB
+</en-US>
+
+---
+
+## v3.2.0-stable · versionCode 19 · 2026-05-18
+
+**Phase:** Stable — Channel Sync & Security
+
+### What's new
+
+- **12 Channel Sync** — all channels synced with admin panel in real-time
+- **FLAG_SECURE** — screenshot and screen recording blocked across the app
+- **Admin Panel Updates** — online user tracking via WebSocket, text message Telegram alerts, channel deletion triggers relay cleanup
+
+---
+
+<pt-BR>
+Versão 3.2.0 Stable — Sincronização de Canais e Segurança
+
+**Novidades:**
+• Sincronização de 12 canais com painel admin em tempo real
+• FLAG_SECURE bloqueia screenshots e gravação de tela
+• Painel admin: rastreamento de usuários online via WebSocket, alertas de mensagens no Telegram
+</pt-BR>
+
+<en-US>
+Version 3.2.0 Stable — Channel Sync & Security
+
+**What's new:**
+• 12 channels synced with admin panel in real-time
+• FLAG_SECURE blocks screenshots and screen recording
+• Admin panel: online user tracking via WebSocket, Telegram text alerts
+</en-US>
+
+---
+
 ## v3.1.1-stable · versionCode 17 · 2026-04-29
 
 **Fase:** Stable — Revisão de Tipagem e UI

@@ -30,7 +30,7 @@ export default function MediaViewer({ visible, uri, type, senderName, timestamp,
   const videoRef = useRef<Video>(null);
 
   const timeStr = timestamp
-    ? new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    ? new Date(timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
     : '';
 
   const handleClose = useCallback(() => {

@@ -51,7 +51,7 @@ type Props = {
 
 function formatTime(ts: number) {
   const d = new Date(ts);
-  return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
 export default function ChatScreen({ navigation, route }: Props) {
@@ -163,7 +163,7 @@ export default function ChatScreen({ navigation, route }: Props) {
       } else {
         setMessages(prev => prev.filter(m => m._id !== tempId));
         seenIds.current.delete(tempId);
-        Alert.alert('Falha', 'Mensagem não enviada. Verifique sua conexão.');
+        Alert.alert('Failed', 'Message not sent. Check your connection.');
       }
     }
   }, [inputText, room.id, serverCtrl]);
@@ -173,7 +173,7 @@ export default function ChatScreen({ navigation, route }: Props) {
     const perm = source === 'gallery'
       ? await ImagePicker.requestMediaLibraryPermissionsAsync()
       : await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) { Alert.alert('Permissão necessária', 'Permita o acesso para enviar mídia.'); return; }
+    if (!perm.granted) { Alert.alert('Permission required', 'Allow access to send media.'); return; }
 
     const result = source === 'gallery'
       ? await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.5, videoMaxDuration: 30 })
@@ -192,7 +192,7 @@ export default function ChatScreen({ navigation, route }: Props) {
         setMessages(prev => [{ _id: sent._id, text: '', createdAt: sent.createdAt, user: sent.user, image: sent.image, video: sent.video }, ...prev]);
       }
     } catch (e: any) {
-      if (isMounted.current) Alert.alert('Erro', e?.message || 'Falha ao enviar mídia.');
+      if (isMounted.current) Alert.alert('Error', e?.message || 'Failed to send media.');
     } finally {
       if (isMounted.current) setSending(false);
     }
@@ -205,8 +205,8 @@ export default function ChatScreen({ navigation, route }: Props) {
   const isConnected = connStatus === 'connected';
   const isChatBlocked = serverCtrl.maintenance || serverCtrl.pauseMessaging;
   const blockReason = serverCtrl.maintenance
-    ? '🔴 Servidor em manutenção'
-    : '⏸ Mensagens pausadas pelo admin';
+    ? '🔴 Server under maintenance'
+    : '⏸ Messages paused by admin';
 
   const messagesRef = useRef<MessageItem[]>([]);
   messagesRef.current = messages;
@@ -304,7 +304,7 @@ export default function ChatScreen({ navigation, route }: Props) {
         <View style={s.headerInfo}>
           <Text style={s.roomName} numberOfLines={1}>{room.name}</Text>
           <Text style={s.roomSub}>
-            {peerCount > 0 ? `${peerCount} online` : 'Aguardando peers...'}
+            {peerCount > 0 ? `${peerCount} online` : 'Waiting for peers...'}
           </Text>
         </View>
         <View style={[s.connBadge, { backgroundColor: isConnected ? 'rgba(0,230,118,0.15)' : 'rgba(255,71,87,0.15)', borderColor: isConnected ? Colors.green : Colors.red }]}>
@@ -314,21 +314,21 @@ export default function ChatScreen({ navigation, route }: Props) {
 
       {!isConnected && (
         <TouchableOpacity style={s.banner} onPress={reconnect}>
-          <Text style={s.bannerText}>⚠ Sem conexão — toque para reconectar</Text>
+          <Text style={s.bannerText}>⚠ No connection — tap to reconnect</Text>
         </TouchableOpacity>
       )}
 
       {sending && (
         <View style={s.sendingBar}>
           <ActivityIndicator size="small" color={Colors.neon} />
-          <Text style={s.sendingText}>Enviando mídia P2P...</Text>
+          <Text style={s.sendingText}>Sending media P2P...</Text>
         </View>
       )}
 
       {!isReady ? (
         <View style={s.loading}>
           <ActivityIndicator size="large" color={Colors.neon} />
-          <Text style={s.loadingText}>Conectando aos peers...</Text>
+          <Text style={s.loadingText}>Connecting to peers...</Text>
         </View>
       ) : (
         <KeyboardAvoidingView
@@ -350,8 +350,8 @@ export default function ChatScreen({ navigation, route }: Props) {
             ListEmptyComponent={
               <View style={s.emptyWrap}>
                 <Text style={s.emptyIcon}>{room.icon}</Text>
-                <Text style={s.emptyTitle}>Sem mensagens</Text>
-                <Text style={s.emptySub}>Seja o primeiro a enviar uma mensagem.{'\n'}Mensagens expiram em 1h.</Text>
+                <Text style={s.emptyTitle}>No messages</Text>
+                <Text style={s.emptySub}>Be the first to send a message.{'\n'}Messages expire in 1h.</Text>
               </View>
             }
           />
@@ -369,7 +369,7 @@ export default function ChatScreen({ navigation, route }: Props) {
               style={[s.input, !isConnected && { borderColor: Colors.red + '44' }]}
               value={inputText}
               onChangeText={setInputText}
-              placeholder={isConnected ? 'Mensagem...' : '⚠ Sem conexão...'}
+              placeholder={isConnected ? 'Message...' : '⚠ No connection...'}
               placeholderTextColor={isConnected ? 'rgba(255,255,255,0.3)' : Colors.red + '88'}
               multiline
               maxLength={2000}

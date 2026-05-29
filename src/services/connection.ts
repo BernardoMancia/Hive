@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { onConnectionStatusChange, getConnectionStatus, resetGun } from './gun';
-
-export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting';
+import { ConnectionState } from '../types';
 
 export function useConnectionStatus(): {
   status: ConnectionState;

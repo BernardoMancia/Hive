@@ -44,7 +44,7 @@ export interface GunMessageData {
   video?: string;
 }
 
-export type ConnectionStatus = 'connected' | 'disconnected' | 'reconnecting';
+export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting';
 
 export interface KeyPair {
   pub: string;

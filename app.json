@@ -46,10 +46,8 @@
       ]
     ],
     "extra": {
-      "eas": {
-        "projectId": "19035b50-3b50-496e-82ab-a9461debdfb4"
-      }
-    },
-    "owner": "luke_arwolf"
+      "relayUrl": "wss://fogoeluar.com.br/gun",
+      "mediaUploadUrl": "https://fogoeluar.com.br/upload"
+    }
   }
 }

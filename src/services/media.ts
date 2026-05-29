@@ -1,10 +1,12 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import Constants from 'expo-constants';
 import { sendMessage } from './gun';
 
-const MAX_SIZE_BYTES = 10 * 1024 * 1024;
+const INLINE_THRESHOLD = 1 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'mov', 'avi'];
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi'];
 const MAX_RETRIES = 3;
+const UPLOAD_URL = Constants.expoConfig?.extra?.mediaUploadUrl || 'https://fogoeluar.com.br/upload';
 
 function getExtension(uri: string): string {
   return uri.split('.').pop()?.toLowerCase().split('?')[0] ?? '';
@@ -30,7 +32,32 @@ async function readWithRetry(uri: string): Promise<string> {
       await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
     }
   }
-  throw lastError ?? new Error('Falha ao ler arquivo após 3 tentativas.');
+  throw lastError ?? new Error('Failed to read file after 3 retries.');
+}
+
+async function uploadToVPS(fileUri: string, mimeType: string): Promise<string> {
+  let lastError: any;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const response = await FileSystem.uploadAsync(UPLOAD_URL, fileUri, {
+        httpMethod: 'POST',
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: 'file',
+        mimeType,
+        headers: { Accept: 'application/json' },
+      });
+      if (response.status === 200) {
+        const data = JSON.parse(response.body);
+        if (data.ok && data.url) return data.url;
+        throw new Error(data.error || 'Upload failed');
+      }
+      throw new Error(`Upload HTTP ${response.status}`);
+    } catch (e) {
+      lastError = e;
+      await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
+    }
+  }
+  throw lastError ?? new Error('Failed to upload media to server.');
 }
 
 export async function sendMediaMessage(
@@ -47,7 +74,7 @@ export async function sendMediaMessage(
   video?: string;
 }> {
   const ext = getExtension(uri) || (type === 'video' ? 'mp4' : 'jpg');
-  if (!ALLOWED_EXTENSIONS.includes(ext)) throw new Error(`Formato não suportado: .${ext}`);
+  if (!ALLOWED_EXTENSIONS.includes(ext)) throw new Error(`Unsupported format: .${ext}`);
 
   const isVideo = type === 'video' || VIDEO_EXTENSIONS.includes(ext);
 
@@ -60,10 +87,6 @@ export async function sendMediaMessage(
     if (!fileInfo.exists || typeof (fileInfo as any).size !== 'number') {
       workUri = await copyToCache(uri, ext);
       tmpCreated = workUri;
-    } else if ((fileInfo as any).size > MAX_SIZE_BYTES) {
-      const sizeMB = ((fileInfo as any).size / 1024 / 1024).toFixed(1);
-      const limitMB = (MAX_SIZE_BYTES / 1024 / 1024).toFixed(0);
-      throw new Error(`Arquivo muito grande (${sizeMB}MB). Máximo: ${limitMB}MB.`);
     }
 
     if (!tmpCreated) {
@@ -72,11 +95,8 @@ export async function sendMediaMessage(
     }
 
     const copiedInfo = await FileSystem.getInfoAsync(workUri);
-    if (!copiedInfo.exists) throw new Error('Falha ao copiar arquivo para cache.');
-    if (typeof (copiedInfo as any).size === 'number' && (copiedInfo as any).size > MAX_SIZE_BYTES) {
-      const sizeMB = ((copiedInfo as any).size / 1024 / 1024).toFixed(1);
-      throw new Error(`Arquivo muito grande após processamento (${sizeMB}MB).`);
-    }
+    if (!copiedInfo.exists) throw new Error('Failed to copy file to cache.');
+    const fileSize = typeof (copiedInfo as any).size === 'number' ? (copiedInfo as any).size : 0;
 
     const mimeMap: Record<string, string> = {
       jpg: 'image/jpeg', jpeg: 'image/jpeg',
@@ -85,16 +105,22 @@ export async function sendMediaMessage(
     };
     const mime = mimeMap[ext] ?? (isVideo ? 'video/mp4' : 'image/jpeg');
 
-    const base64 = await readWithRetry(workUri);
-    const dataUri = `data:${mime};base64,${base64}`;
+    let mediaUri: string;
+
+    if (fileSize > INLINE_THRESHOLD) {
+      mediaUri = await uploadToVPS(workUri, mime);
+    } else {
+      const base64 = await readWithRetry(workUri);
+      mediaUri = `data:${mime};base64,${base64}`;
+    }
 
     const messageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     const messageData: any = { _id: messageId, text: '', createdAt: Date.now(), user };
 
     if (isVideo) {
-      messageData.video = dataUri;
+      messageData.video = mediaUri;
     } else {
-      messageData.image = dataUri;
+      messageData.image = mediaUri;
     }
 
     let success = false;
@@ -103,7 +129,7 @@ export async function sendMediaMessage(
       if (success) break;
       await new Promise(r => setTimeout(r, 500 * (i + 1)));
     }
-    if (!success) throw new Error('Falha ao enviar pela rede P2P. Verifique sua conexão.');
+    if (!success) throw new Error('Failed to send over P2P network. Check your connection.');
 
     return messageData;
   } finally {
@@ -115,4 +141,8 @@ export async function sendMediaMessage(
 
 export function isBase64Media(uri?: string): boolean {
   return typeof uri === 'string' && uri.startsWith('data:');
+}
+
+export function isVPSMedia(uri?: string): boolean {
+  return typeof uri === 'string' && uri.startsWith('https://');
 }

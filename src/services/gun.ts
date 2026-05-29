@@ -1,15 +1,17 @@
 import Gun from 'gun';
 import 'gun/sea';
 import { encryptMessage, decryptMessage } from './crypto';
+import Constants from 'expo-constants';
+import { ConnectionState } from '../types';
 
 export const NAMESPACE = 'hive_v2';
 const TTL_MS = 60 * 60 * 1000;
 
 const RELAY_PEERS = [
-  'wss://fogoeluar.com.br/gun',
+  Constants.expoConfig?.extra?.relayUrl || 'wss://fogoeluar.com.br/gun',
 ];
 
-export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting';
+export type { ConnectionState } from '../types';
 type StatusListener = (status: ConnectionState) => void;
 
 let gunInstance: any = null;

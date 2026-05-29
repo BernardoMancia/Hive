@@ -7,11 +7,12 @@ const fs       = require('fs');
 const path     = require('path');
 const fetch    = require('node-fetch');
 const FormData = require('form-data');
+const crypto   = require('crypto');
 
 process.env.GUN_ENV = 'false';
 
 const NAMESPACE   = 'hive_v2';
-const TTL_MS      = 24 * 60 * 60 * 1000; // 24h desde createdAt
+const TTL_MS      = 60 * 60 * 1000;
 const MAX_MSG_AGE = 60 * 1000;            // só envia ao Telegram se < 60s
 
 const TG_TOKEN    = process.env.TG_TOKEN    || '';
@@ -20,7 +21,11 @@ const ADMIN_IDS   = (process.env.TG_ADMIN_IDS || '').split(',').map(s => s.trim(
 
 const ADMIN_HTML = path.join(__dirname, 'admin', 'index.html');
 
-const stats = { messages: 0, media: 0, started: Date.now() };
+const stats = { messages: 0, media: 0, uploads: 0, started: Date.now() };
+
+const UPLOADS_DIR  = path.join(__dirname, 'uploads');
+const MAX_UPLOAD   = 100 * 1024 * 1024;
+try { fs.mkdirSync(UPLOADS_DIR, { recursive: true }); } catch (_) {}
 
 // TTL timers (msgKey -> timeoutId)
 const scheduled   = new Map();
@@ -36,11 +41,85 @@ let messagingPaused  = false;
 // Online users via WebSocket connections
 let onlineUsers = 0;
 
-// ── HTTP Server ───────────────────────────────────────────────────
+function parseMultipart(req) {
+  return new Promise((resolve, reject) => {
+    const ct = req.headers['content-type'] || '';
+    const match = ct.match(/boundary=(.+)/);
+    if (!match) return reject(new Error('No boundary'));
+    const boundary = match[1];
+    const chunks = [];
+    let totalSize = 0;
+    req.on('data', (chunk) => {
+      totalSize += chunk.length;
+      if (totalSize > MAX_UPLOAD) { req.destroy(); reject(new Error('File too large')); return; }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      const raw = Buffer.concat(chunks);
+      const sep = Buffer.from(`--${boundary}`);
+      let start = 0;
+      let fileBuffer = null;
+      let fileName = 'upload';
+      let contentType = 'application/octet-stream';
+      while (true) {
+        const idx = raw.indexOf(sep, start);
+        if (idx === -1) break;
+        const nextIdx = raw.indexOf(sep, idx + sep.length);
+        if (nextIdx === -1) break;
+        const part = raw.slice(idx + sep.length, nextIdx);
+        const headerEnd = part.indexOf('\r\n\r\n');
+        if (headerEnd === -1) { start = nextIdx; continue; }
+        const headers = part.slice(0, headerEnd).toString();
+        if (headers.includes('filename=')) {
+          const fnMatch = headers.match(/filename="([^"]+)"/);
+          if (fnMatch) fileName = fnMatch[1];
+          const ctMatch = headers.match(/Content-Type:\s*(.+)/i);
+          if (ctMatch) contentType = ctMatch[1].trim();
+          fileBuffer = part.slice(headerEnd + 4);
+          if (fileBuffer.length >= 2 && fileBuffer[fileBuffer.length - 2] === 13 && fileBuffer[fileBuffer.length - 1] === 10) {
+            fileBuffer = fileBuffer.slice(0, -2);
+          }
+        }
+        start = nextIdx;
+      }
+      if (!fileBuffer) return reject(new Error('No file found'));
+      resolve({ buffer: fileBuffer, fileName, contentType });
+    });
+    req.on('error', reject);
+  });
+}
+
+function cleanupExpiredUploads() {
+  try {
+    const files = fs.readdirSync(UPLOADS_DIR);
+    const now = Date.now();
+    for (const f of files) {
+      const fp = path.join(UPLOADS_DIR, f);
+      try {
+        const stat = fs.statSync(fp);
+        if (now - stat.mtimeMs > TTL_MS) {
+          fs.unlinkSync(fp);
+          console.log(`[Upload] expired: ${f}`);
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
+setInterval(cleanupExpiredUploads, 5 * 60 * 1000);
+
+const MIME_EXT = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp',
+  'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/x-msvideo': 'avi',
+};
+
 const server = http.createServer((req, res) => {
   const url = req.url.split('?')[0];
 
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
   if (url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -50,7 +129,7 @@ const server = http.createServer((req, res) => {
       memoryRaw: Math.round(process.memoryUsage().rss / 1024 / 1024),
       heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
       memory: `${Math.round(process.memoryUsage().rss / 1024 / 1024)}MB`,
-      persistence: 'none', ttl: '24h',
+      persistence: 'none', ttl: '1h',
       telegram: TG_TOKEN ? 'configured' : 'disabled',
       tracked: scheduled.size,
       maintenanceMode, messagingPaused,
@@ -73,7 +152,7 @@ const server = http.createServer((req, res) => {
   if (url === '/admin/test-telegram' && req.method === 'POST') {
     if (!TG_TOKEN || !TG_GROUP_ID) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ ok: false, error: 'Telegram não configurado no servidor' }));
+      return res.end(JSON.stringify({ ok: false, error: 'Telegram not configured' }));
     }
     const dt = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
     fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
@@ -81,7 +160,7 @@ const server = http.createServer((req, res) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: TG_GROUP_ID,
-        text: `🧪 *Teste do Admin Panel*\n⏰ ${dt}\n✅ Relay online — uptime: ${Math.floor(process.uptime())}s\n📊 RAM: ${Math.round(process.memoryUsage().rss/1024/1024)}MB`,
+        text: `🧪 *Admin Panel Test*\n⏰ ${dt}\n✅ Relay online — uptime: ${Math.floor(process.uptime())}s\n📊 RAM: ${Math.round(process.memoryUsage().rss/1024/1024)}MB`,
         parse_mode: 'Markdown',
       }),
     }).then(r => r.json()).then(json => {
@@ -94,13 +173,56 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (url === '/upload' && req.method === 'POST') {
+    if (maintenanceMode) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: 'Maintenance mode' }));
+    }
+    parseMultipart(req).then(({ buffer, fileName, contentType }) => {
+      const id = crypto.randomBytes(16).toString('hex');
+      const ext = MIME_EXT[contentType] || fileName.split('.').pop() || 'bin';
+      const storedName = `${id}.${ext}`;
+      const filePath = path.join(UPLOADS_DIR, storedName);
+      fs.writeFileSync(filePath, buffer);
+      stats.uploads++;
+      const publicUrl = `https://fogoeluar.com.br/media/${storedName}`;
+      console.log(`[Upload] ${storedName} (${(buffer.length / 1024 / 1024).toFixed(2)}MB)`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, url: publicUrl, id: storedName, size: buffer.length }));
+    }).catch(e => {
+      console.warn('[Upload] error:', e.message);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    });
+    return;
+  }
+
+  const mediaMatch = url.match(/^\/media\/([a-f0-9]+\.\w+)$/);
+  if (mediaMatch && req.method === 'GET') {
+    const filePath = path.join(UPLOADS_DIR, mediaMatch[1]);
+    if (!fs.existsSync(filePath)) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Not found or expired' }));
+    }
+    const ext = mediaMatch[1].split('.').pop();
+    const mimeMap = { jpg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', mp4: 'video/mp4', mov: 'video/quicktime', avi: 'video/x-msvideo' };
+    const mime = mimeMap[ext] || 'application/octet-stream';
+    res.writeHead(200, {
+      'Content-Type': mime,
+      'Cache-Control': 'public, max-age=3600',
+      'Content-Length': fs.statSync(filePath).size,
+    });
+    fs.createReadStream(filePath).pipe(res);
+    return;
+  }
+
   if (maintenanceMode && url !== '/health') {
     res.writeHead(503, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ status: 'maintenance', message: 'Relay em manutenção' }));
+    return res.end(JSON.stringify({ status: 'maintenance', message: 'Relay under maintenance' }));
   }
 
   res.writeHead(200);
-  res.end('Hive Relay | RAM only | E2E | TTL 24h');
+  res.end('Hive Relay | E2E | TTL 1h');
 });
 
 // ── WebSocket connection tracking ────────────────────────────────
