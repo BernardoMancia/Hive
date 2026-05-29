@@ -590,7 +590,7 @@ async function setupBotMenu() {
     if (TG_GROUP_ID) {
       const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
       await tgSend(TG_GROUP_ID,
-        `🟢 *Hive Relay iniciado*\n\n🕐 ${now}\n📡 Porta: \`8765\`\n🔐 RAM only | E2E | TTL 24h\n\nUse /menu para monitorar.`
+        `🟢 *Hive Relay iniciado*\n\n🕐 ${now}\n📡 Porta: \`8765\`\n🔐 RAM only | E2E | TTL 1h\n\nUse /menu para monitorar.`
       );
     }
   } catch (_) {}
@@ -599,7 +599,7 @@ async function setupBotMenu() {
 // ── Start ────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '8765', 10);
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[Hive Relay] 0.0.0.0:${PORT} | RAM | E2E | TTL 24h | TG:${TG_TOKEN ? 'ON' : 'OFF'}`);
+  console.log(`[Hive Relay] 0.0.0.0:${PORT} | RAM | E2E | TTL 1h | TG:${TG_TOKEN ? 'ON' : 'OFF'}`);
   setupBotMenu();
   pollUpdates();
 });
