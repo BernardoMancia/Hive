@@ -29,6 +29,8 @@ import {
 import { resetGun, subscribeToAdminRooms } from '../services/gun';
 import type { AdminRoom } from '../services/gun';
 import { useConnectionStatus } from '../services/connection';
+import { getDeviceId, checkPrivateAccess } from '../services/device';
+import Constants from 'expo-constants';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
@@ -93,6 +95,7 @@ export default function HomeScreen({ navigation }: Props) {
           description: ar.desc || existing?.description || '',
           icon: ar.icon || existing?.icon || '💬',
           isAdult: existing?.isAdult ?? false,
+          isPrivate: existing?.isPrivate ?? false,
           color: existing?.color || '#00d4ff',
         };
       });
@@ -129,6 +132,14 @@ export default function HomeScreen({ navigation }: Props) {
     if (room.isAdult) {
       const verified = await isAgeVerified();
       if (!verified) { navigation.navigate('AgeVerification', { room }); return; }
+    }
+    if (room.isPrivate) {
+      const deviceId = await getDeviceId();
+      const hasAccess = await checkPrivateAccess(deviceId);
+      if (!hasAccess) {
+        navigation.navigate('PrivateAccess', { room, deviceId });
+        return;
+      }
     }
     navigation.navigate('Chat', { room });
   };
@@ -227,7 +238,7 @@ export default function HomeScreen({ navigation }: Props) {
         ListFooterComponent={
           <View style={s.footer}>
             <Text style={s.footerText}>⬡ P2P · zero data · TTL 1h</Text>
-            <Text style={s.footerVersion}>v3.2.3</Text>
+            <Text style={s.footerVersion}>v{Constants.expoConfig?.version ?? '3.2.3'}</Text>
           </View>
         }
       />

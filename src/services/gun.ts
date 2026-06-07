@@ -24,7 +24,7 @@ const statusListeners = new Set<StatusListener>();
 function notifyStatus(status: ConnectionState): void {
   if (status === currentStatus) return;
   currentStatus = status;
-  statusListeners.forEach((fn) => { try { fn(status); } catch (_) {} });
+  statusListeners.forEach((fn) => { try { fn(status); } catch (e) { console.warn('[Hive:gun] Status listener error:', e); } });
 }
 
 function clearReconnectTimer(): void {
@@ -44,7 +44,7 @@ function createGunInstance(): void {
   if (isInitializing) return;
   isInitializing = true;
   if (gunInstance) {
-    try { gunInstance.off(); } catch (_) {}
+    try { gunInstance.off(); } catch (e) { console.warn('[Hive:gun] Gun off() error:', e); }
     gunInstance = null;
   }
   try {
@@ -123,7 +123,7 @@ export async function sendMessage(roomId: string, data: MessageData): Promise<bo
         } else {
           encryptedText = data.text;
         }
-      } catch (_) {
+      } catch (e) { console.warn('[Hive:gun] Encryption error:', e);
         encryptedText = data.text;
       }
     }
@@ -170,18 +170,35 @@ export function subscribeToMessages(
         try {
           const dec = await decryptMessage(text, roomId);
           if (dec !== null && dec !== undefined) text = dec;
-        } catch (_) {}
+        } catch (e) { console.warn('[Hive:gun] Decryption error:', e); }
       }
 
       let user: { _id: string; name: string } = { _id: 'unknown', name: 'Unknown' };
-      try { user = typeof data.user === 'string' ? JSON.parse(data.user) : data.user; } catch (_) {}
+      try { user = typeof data.user === 'string' ? JSON.parse(data.user) : data.user; } catch (e) { console.warn('[Hive:gun] User parse error:', e); }
 
-      onMessage({ _id: data._id, text, createdAt: data.createdAt, user, image: data.image, video: data.video });
+      let image = data.image;
+      let video = data.video;
+
+      // Decrypt encrypted inline media
+      if (image && typeof image === 'string' && image.startsWith('enc:')) {
+        try {
+          const dec = await decryptMessage(image.slice(4), roomId);
+          if (dec) image = dec;
+        } catch (e) { console.warn('[Hive:gun] Image decrypt error:', e); }
+      }
+      if (video && typeof video === 'string' && video.startsWith('enc:')) {
+        try {
+          const dec = await decryptMessage(video.slice(4), roomId);
+          if (dec) video = dec;
+        } catch (e) { console.warn('[Hive:gun] Video decrypt error:', e); }
+      }
+
+      onMessage({ _id: data._id, text, createdAt: data.createdAt, user, image, video });
     });
 
     return () => {
       active = false;
-      try { node.map().off(); } catch (_) {}
+      try { node.map().off(); } catch (e) { console.warn('[Hive:gun] Unsub error:', e); }
     };
   } catch (e) {
     console.warn('[Hive:gun] subscribeToMessages error:', e);
@@ -223,7 +240,7 @@ export function subscribeToAdminRooms(
 
     return () => {
       active = false;
-      try { node.map().off(); } catch (_) {}
+      try { node.map().off(); } catch (e) { console.warn('[Hive:gun] Unsub rooms error:', e); }
     };
   } catch (e) {
     console.warn('[Hive:gun] subscribeToAdminRooms error:', e);
@@ -251,7 +268,7 @@ export function subscribeToServerCtrl(
     });
     return () => {
       active = false;
-      try { node.off(); } catch (_) {}
+      try { node.off(); } catch (e) { console.warn('[Hive:gun] Unsub ctrl error:', e); }
     };
   } catch (e) {
     console.warn('[Hive:gun] subscribeToServerCtrl error:', e);

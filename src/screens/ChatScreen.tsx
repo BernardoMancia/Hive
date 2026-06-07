@@ -130,7 +130,7 @@ export default function ChatScreen({ navigation, route }: Props) {
       );
       unsubMessages.current = unsubM;
       if (isMounted.current) setIsReady(true);
-    } catch (_) {
+    } catch (e) { console.warn('[Hive:chat] initChat error:', e);
       if (isMounted.current) setIsReady(true);
     }
   };
@@ -222,7 +222,7 @@ export default function ChatScreen({ navigation, route }: Props) {
     const statusIcon = isOwn
       ? item.confirmed ? '✓✓' : item.sent ? '✓' : item.pending ? '⏳' : '✓'
       : null;
-    const statusColor = item.confirmed ? '#4FC3F7' : 'rgba(255,255,255,0.4)';
+    const statusColor = item.confirmed ? Colors.neon : 'rgba(255,255,255,0.4)';
 
     const hasMedia = !!(item.image || item.video);
 
@@ -307,7 +307,7 @@ export default function ChatScreen({ navigation, route }: Props) {
             {peerCount > 0 ? `${peerCount} online` : 'Waiting for peers...'}
           </Text>
         </View>
-        <View style={[s.connBadge, { backgroundColor: isConnected ? 'rgba(0,230,118,0.15)' : 'rgba(255,71,87,0.15)', borderColor: isConnected ? Colors.green : Colors.red }]}>
+        <View style={[s.connBadge, { backgroundColor: isConnected ? Colors.greenDim : Colors.redDim, borderColor: isConnected ? Colors.green : Colors.red }]}>
           <View style={[s.connDot, { backgroundColor: isConnected ? Colors.green : Colors.red }]} />
         </View>
       </View>
@@ -411,7 +411,7 @@ const s = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 8, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', gap: 10,
+    borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 10,
     backgroundColor: Colors.surface,
   },
   backBtn: {
@@ -429,10 +429,10 @@ const s = StyleSheet.create({
   },
   connDot: { width: 10, height: 10, borderRadius: 5 },
 
-  banner: { backgroundColor: 'rgba(255,211,42,0.12)', paddingHorizontal: 20, paddingVertical: 8 },
+  banner: { backgroundColor: Colors.yellowDim, paddingHorizontal: 20, paddingVertical: 8 },
   bannerText: { fontSize: 12, color: Colors.yellow, fontWeight: '600', textAlign: 'center' },
 
-  sendingBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(0,212,255,0.08)', paddingVertical: 7 },
+  sendingBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.neonDim, paddingVertical: 7 },
   sendingText: { fontSize: 12, color: Colors.neon, fontWeight: '600' },
 
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
@@ -452,7 +452,7 @@ const s = StyleSheet.create({
 
   avatar: {
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: 'rgba(124,77,255,0.2)', borderWidth: 1, borderColor: 'rgba(124,77,255,0.3)',
+    backgroundColor: Colors.purpleDim, borderWidth: 1, borderColor: 'rgba(124,58,237,0.3)',
     justifyContent: 'center', alignItems: 'center', marginRight: 6,
   },
   avatarText: { fontSize: 12, fontWeight: '700', color: Colors.purple },
@@ -461,12 +461,12 @@ const s = StyleSheet.create({
     maxWidth: '78%', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8,
   },
   bubbleOwn: {
-    backgroundColor: '#1a3a4a',
+    backgroundColor: Colors.sent,
     borderBottomRightRadius: 18,
     marginLeft: 48,
   },
   bubbleOther: {
-    backgroundColor: '#1e2833',
+    backgroundColor: Colors.received,
     borderBottomLeftRadius: 18,
   },
   bubbleOwnTail: {
@@ -482,18 +482,18 @@ const s = StyleSheet.create({
   },
 
   senderName: {
-    fontSize: 13, fontWeight: '700', color: '#7C4DFF',
+    fontSize: 13, fontWeight: '700', color: Colors.purple,
     marginBottom: 2, marginLeft: 4,
   },
 
-  msgText: { fontSize: 15, color: '#e8e8e8', lineHeight: 21 },
+  msgText: { fontSize: 15, color: Colors.text, lineHeight: 21 },
   msgMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 2, gap: 4 },
-  msgTime: { fontSize: 11, color: 'rgba(255,255,255,0.35)' },
+  msgTime: { fontSize: 11, color: Colors.textMuted },
   msgStatus: { fontSize: 11, fontWeight: '700' },
 
   msgImage: { width: 240, height: 240, borderRadius: 14 },
 
-  videoThumb: { width: 240, height: 160, borderRadius: 14, overflow: 'hidden', backgroundColor: '#000' },
+  videoThumb: { width: 240, height: 160, borderRadius: 14, overflow: 'hidden', backgroundColor: Colors.bg },
   videoPreview: { width: 240, height: 160 },
   playOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -505,7 +505,7 @@ const s = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
     borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)',
   },
-  playIcon: { fontSize: 20, color: '#fff', marginLeft: 3 },
+  playIcon: { fontSize: 20, color: Colors.text, marginLeft: 3 },
 
   mediaTimeBadge: {
     position: 'absolute', bottom: 6, right: 6,
@@ -513,12 +513,12 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 10,
     paddingHorizontal: 8, paddingVertical: 3,
   },
-  mediaTimeText: { fontSize: 11, color: '#fff', fontWeight: '500' },
+  mediaTimeText: { fontSize: 11, color: Colors.text, fontWeight: '500' },
   mediaStatusIcon: { fontSize: 11, fontWeight: '700' },
 
   inputBar: {
     flexDirection: 'row', alignItems: 'flex-end',
-    backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border,
     paddingHorizontal: 8, paddingTop: 8, gap: 6,
   },
   attachBtn: {
@@ -528,7 +528,7 @@ const s = StyleSheet.create({
   attachIcon: { fontSize: 22 },
   input: {
     flex: 1, minHeight: 40, maxHeight: 120,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: Colors.glassLight,
     borderRadius: 20, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10,
     fontSize: 15, color: Colors.text, lineHeight: 20,
   },
@@ -545,7 +545,7 @@ const s = StyleSheet.create({
   cameraIcon: { fontSize: 22 },
 
   blockedBar: {
-    backgroundColor: 'rgba(255,71,87,0.12)',
+    backgroundColor: Colors.redDim,
     borderTopWidth: 1, borderTopColor: 'rgba(255,71,87,0.3)',
     paddingHorizontal: 20, paddingTop: 14,
     alignItems: 'center', justifyContent: 'center', minHeight: 64,

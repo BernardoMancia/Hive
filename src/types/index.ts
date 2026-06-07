@@ -4,6 +4,7 @@ export interface ChatRoom {
   description: string;
   icon: string;
   isAdult: boolean;
+  isPrivate?: boolean;
   color: string;
 }
 
@@ -34,28 +35,14 @@ export interface PresenceData {
   [peerId: string]: PeerInfo;
 }
 
-export interface GunMessageData {
-  _id: string;
-  text: string;
-  createdAt: number;
-  userId: string;
-  userName: string;
-  image?: string;
-  video?: string;
-}
 
 export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting';
 
-export interface KeyPair {
-  pub: string;
-  priv: string;
-  epub: string;
-  epriv: string;
-}
 
 export type RootStackParamList = {
   Welcome: undefined;
   Home: undefined;
   Chat: { room: ChatRoom };
   AgeVerification: { room: ChatRoom };
+  PrivateAccess: { room: ChatRoom; deviceId: string };
 };

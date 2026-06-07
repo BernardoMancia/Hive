@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
+import { encryptMessage } from './crypto';
 import { sendMessage } from './gun';
 
 const INLINE_THRESHOLD = 1 * 1024 * 1024;
@@ -7,6 +8,7 @@ const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'mov', '
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi'];
 const MAX_RETRIES = 3;
 const UPLOAD_URL = Constants.expoConfig?.extra?.mediaUploadUrl || 'https://fogoeluar.com.br/upload';
+const UPLOAD_TOKEN = Constants.expoConfig?.extra?.uploadToken || '';
 
 function getExtension(uri: string): string {
   return uri.split('.').pop()?.toLowerCase().split('?')[0] ?? '';
@@ -44,7 +46,10 @@ async function uploadToVPS(fileUri: string, mimeType: string): Promise<string> {
         uploadType: FileSystem.FileSystemUploadType.MULTIPART,
         fieldName: 'file',
         mimeType,
-        headers: { Accept: 'application/json' },
+        headers: {
+          Accept: 'application/json',
+          ...(UPLOAD_TOKEN ? { 'X-Upload-Token': UPLOAD_TOKEN } : {}),
+        },
       });
       if (response.status === 200) {
         const data = JSON.parse(response.body);
@@ -111,7 +116,18 @@ export async function sendMediaMessage(
       mediaUri = await uploadToVPS(workUri, mime);
     } else {
       const base64 = await readWithRetry(workUri);
-      mediaUri = `data:${mime};base64,${base64}`;
+      const rawDataUri = `data:${mime};base64,${base64}`;
+      // Encrypt inline media with room key
+      try {
+        const encrypted = await encryptMessage(rawDataUri, roomId);
+        if (encrypted !== rawDataUri) {
+          mediaUri = `enc:${encrypted}`;
+        } else {
+          mediaUri = rawDataUri;
+        }
+      } catch {
+        mediaUri = rawDataUri;
+      }
     }
 
     const messageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;

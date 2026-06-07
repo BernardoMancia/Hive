@@ -18,6 +18,8 @@ const MAX_MSG_AGE = 60 * 1000;            // só envia ao Telegram se < 60s
 const TG_TOKEN    = process.env.TG_TOKEN    || '';
 const TG_GROUP_ID = process.env.TG_GROUP_ID || '';
 const ADMIN_IDS   = (process.env.TG_ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
+const UPLOAD_TOKEN  = process.env.UPLOAD_TOKEN  || '';
+const ADMIN_SECRET  = process.env.ADMIN_SECRET  || '';
 
 const ADMIN_HTML = path.join(__dirname, 'admin', 'index.html');
 
@@ -26,6 +28,14 @@ const stats = { messages: 0, media: 0, uploads: 0, started: Date.now() };
 const UPLOADS_DIR  = path.join(__dirname, 'uploads');
 const MAX_UPLOAD   = 100 * 1024 * 1024;
 try { fs.mkdirSync(UPLOADS_DIR, { recursive: true }); } catch (_) {}
+
+// Room salts — persisted to disk for consistency
+const SALTS_FILE = path.join(__dirname, 'room_salts.json');
+let roomSalts = {};
+try { roomSalts = JSON.parse(fs.readFileSync(SALTS_FILE, 'utf8')); } catch (_) {}
+function saveRoomSalts() {
+  try { fs.writeFileSync(SALTS_FILE, JSON.stringify(roomSalts, null, 2)); } catch (_) {}
+}
 
 // TTL timers (msgKey -> timeoutId)
 const scheduled   = new Map();
@@ -117,7 +127,7 @@ const server = http.createServer((req, res) => {
 
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Upload-Token');
 
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
@@ -173,10 +183,31 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── Room salt endpoint (per-room random key component) ──────────
+  const roomKeyMatch = url.match(/^\/room-key\/(.+)$/);
+  if (roomKeyMatch && req.method === 'GET') {
+    const roomId = decodeURIComponent(roomKeyMatch[1]);
+    if (!roomSalts[roomId]) {
+      roomSalts[roomId] = crypto.randomBytes(32).toString('hex');
+      saveRoomSalts();
+      console.log(`[RoomKey] Generated salt for room: ${roomId}`);
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'private, max-age=3600' });
+    return res.end(JSON.stringify({ salt: roomSalts[roomId] }));
+  }
+
   if (url === '/upload' && req.method === 'POST') {
     if (maintenanceMode) {
       res.writeHead(503, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ ok: false, error: 'Maintenance mode' }));
+    }
+    // Validate upload token
+    if (UPLOAD_TOKEN) {
+      const token = req.headers['x-upload-token'];
+      if (token !== UPLOAD_TOKEN) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, error: 'Unauthorized' }));
+      }
     }
     parseMultipart(req).then(({ buffer, fileName, contentType }) => {
       const id = crypto.randomBytes(16).toString('hex');
@@ -253,6 +284,13 @@ setTimeout(() => { booting = false; }, 5000);
 
 gun.get(NAMESPACE).get('admin').get('ctrl').on((data) => {
   if (!data) return;
+
+  // Validate admin secret for sensitive operations (if configured)
+  if (ADMIN_SECRET && data.adminSecret && data.adminSecret !== ADMIN_SECRET) {
+    console.warn('[Admin] Invalid admin secret — ignoring ctrl update');
+    return;
+  }
+
   maintenanceMode = !!data.maintenance;
   messagingPaused = !!data.pauseMessaging;
 

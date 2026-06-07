@@ -15,6 +15,7 @@ import WelcomeScreen from './src/screens/WelcomeScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import ChatScreen from './src/screens/ChatScreen';
 import AgeVerificationScreen from './src/screens/AgeVerificationScreen';
+import PrivateAccessScreen from './src/screens/PrivateAccessScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -85,6 +86,11 @@ export default function App() {
             <Stack.Screen
               name="AgeVerification"
               component={AgeVerificationScreen}
+              options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+            />
+            <Stack.Screen
+              name="PrivateAccess"
+              component={PrivateAccessScreen}
               options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
             />
           </Stack.Navigator>

@@ -159,7 +159,7 @@ export function subscribeToPresence(
     return () => {
       active = false;
       peersMap.clear();
-      try { node.map().off(); } catch (_) {}
+      try { node.map().off(); } catch (e) { console.warn('[Hive:presence] Unsub error:', e); }
     };
   } catch (e) {
     console.warn('[Hive:presence] subscribeToPresence error:', e);
@@ -176,9 +176,9 @@ export async function getUserId(): Promise<string> {
       await AsyncStorage.setItem(STORAGE_USER_ID, id);
     }
     return id;
-  } catch (_) {
+  } catch (e) { console.warn('[Hive:presence] getUserId read failed:', e);
     const fallback = `peer_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-    try { await AsyncStorage.setItem(STORAGE_USER_ID, fallback); } catch (__) {}
+    try { await AsyncStorage.setItem(STORAGE_USER_ID, fallback); } catch (e) { console.warn('[Hive:presence] getUserId write failed:', e); }
     return fallback;
   }
 }
@@ -186,7 +186,7 @@ export async function getUserId(): Promise<string> {
 export async function getUserName(): Promise<string | null> {
   try {
     return await AsyncStorage.getItem(STORAGE_USER_NAME);
-  } catch (_) {
+  } catch (e) { console.warn('[Hive:presence] getUserName failed:', e);
     return null;
   }
 }
@@ -199,7 +199,7 @@ export async function setUserName(name: string): Promise<void> {
 export async function isAgeVerified(): Promise<boolean> {
   try {
     return (await AsyncStorage.getItem(STORAGE_AGE_VERIFIED)) === 'true';
-  } catch (_) {
+  } catch (e) { console.warn('[Hive:presence] isAgeVerified failed:', e);
     return false;
   }
 }

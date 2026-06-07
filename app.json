@@ -47,7 +47,9 @@
     ],
     "extra": {
       "relayUrl": "wss://fogoeluar.com.br/gun",
-      "mediaUploadUrl": "https://fogoeluar.com.br/upload"
+      "relayBaseUrl": "https://fogoeluar.com.br",
+      "mediaUploadUrl": "https://fogoeluar.com.br/upload",
+      "uploadToken": "CHANGE_ME_TO_A_SECURE_TOKEN"
     }
   }
 }

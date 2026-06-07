@@ -91,6 +91,15 @@ export const ROOMS: ChatRoom[] = [
     color: '#FFAB40',
   },
   {
+    id: 'private',
+    name: 'Private Lounge',
+    description: 'Invite-only — device verified',
+    icon: '🔒',
+    isAdult: false,
+    isPrivate: true,
+    color: '#FFD700',
+  },
+  {
     id: 'adult',
     name: 'Free Zone (+18)',
     description: 'Adult content',

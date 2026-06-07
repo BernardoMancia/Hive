@@ -189,6 +189,7 @@
       <span id="conn-status">Conectando...</span>
     </div>
     <button class="btn" style="font-size:12px;padding:6px 14px;opacity:.7" onclick="location.reload()">🔄 Refresh</button>
+    <input id="admin-secret" type="password" placeholder="Admin Secret" style="width:140px;font-size:11px;padding:5px 10px" title="Admin secret for authenticated operations"/>
   </div>
 </header>
 
@@ -277,6 +278,7 @@
   <div class="card purple">
     <div class="card-header">
       <div class="card-title">💬 Canais <span class="badge" id="badge-rooms">0</span></div>
+      <button class="btn" style="font-size:11px;padding:4px 10px;background:rgba(255,71,87,.4)" onclick="resetAllRooms()">🔄 Reset All</button>
     </div>
     <div class="room-list" id="room-list">
       <div class="empty"><div class="empty-icon">📋</div>Carregando...</div>
@@ -320,6 +322,22 @@
         <div class="test-result" id="tr-tg">—</div>
         <button class="btn btn-primary" style="font-size:12px" onclick="testTelegram()">Enviar teste</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Private Access -->
+  <div class="card full" style="border-color:rgba(255,215,0,.15)">
+    <div class="card-header">
+      <div class="card-title" style="color:#FFD700">🔒 Private Access Control</div>
+      <span class="badge" id="badge-devices" style="background:rgba(255,215,0,.15);color:#FFD700;border-color:rgba(255,215,0,.25)">0</span>
+    </div>
+    <div class="user-list" id="device-list">
+      <div class="empty"><div class="empty-icon">📱</div>No authorized devices</div>
+    </div>
+    <div class="form-row">
+      <input id="new-device-id" type="text" placeholder="Device ID"/>
+      <input id="new-device-name" type="text" placeholder="User Name"/>
+      <button class="btn btn-primary" onclick="addDevice()">+ Add</button>
     </div>
   </div>
 
@@ -375,23 +393,25 @@ function formatUptime(s) {
   return m + 'm ' + (s % 60) + 's';
 }
 
+function getAdminSecret() { return document.getElementById('admin-secret').value || ''; }
+
 function toggleMaintenance() {
   ctrlState.maintenance = !ctrlState.maintenance;
-  gun.get('hive_v2').get('admin').get('ctrl').get('maintenance').put(ctrlState.maintenance);
+  gun.get('hive_v2').get('admin').get('ctrl').put({ maintenance: ctrlState.maintenance, adminSecret: getAdminSecret() });
   updateCtrlButtons();
   addActivity(ctrlState.maintenance ? '🔴' : '🟢', ctrlState.maintenance ? 'Modo manutenção <b>ativado</b>' : 'Manutenção <b>desativada</b>');
 }
 
 function togglePause() {
   ctrlState.pauseMessaging = !ctrlState.pauseMessaging;
-  gun.get('hive_v2').get('admin').get('ctrl').get('pauseMessaging').put(ctrlState.pauseMessaging);
+  gun.get('hive_v2').get('admin').get('ctrl').put({ pauseMessaging: ctrlState.pauseMessaging, adminSecret: getAdminSecret() });
   updateCtrlButtons();
   addActivity(ctrlState.pauseMessaging ? '⏸' : '▶️', ctrlState.pauseMessaging ? 'Mensagens <b>pausadas</b>' : 'Mensagens <b>retomadas</b>');
 }
 
 function clearAllChats() {
   if (!confirm('Limpar TODAS as mensagens de todos os canais?')) return;
-  gun.get('hive_v2').get('admin').get('ctrl').get('clearChat').put(Date.now());
+  gun.get('hive_v2').get('admin').get('ctrl').put({ clearChat: Date.now(), adminSecret: getAdminSecret() });
   addActivity('🗑️', '<b>Clear chat</b> enviado ao relay');
 }
 
@@ -553,6 +573,7 @@ const DEFAULT_ROOMS = [
   {id:'travel', name:'Travel', icon:'🌍', desc:'Destinations'},
   {id:'memes', name:'Memes & Humor', icon:'🤣', desc:'Funny content'},
   {id:'adult', name:'Free Zone (+18)', icon:'🔞', desc:'Adult content'},
+  {id:'private', name:'Private Lounge', icon:'🔒', desc:'Invite-only — device verified'},
 ];
 
 gun.get(NAMESPACE).get('admin').get('rooms').map().on((data, key) => {
@@ -618,21 +639,37 @@ function createRoom() {
 
 function toggleRoom(id, archive) {
   if (!rooms[id]) return;
-  const updated = Object.assign({}, rooms[id], { archived: archive, deleted: false });
-  gun.get(NAMESPACE).get('admin').get('rooms').get(id).put(updated);
-  rooms[id] = updated;
+  gun.get(NAMESPACE).get('admin').get('rooms').get(id).get('archived').put(archive);
+  gun.get(NAMESPACE).get('admin').get('rooms').get(id).get('deleted').put(false);
+  rooms[id].archived = archive;
+  rooms[id].deleted = false;
   addActivity(archive ? '🗄️' : '♻️', `Canal <b>#${id}</b> ${archive ? 'arquivado' : 'restaurado'}`);
   renderRooms();
 }
 
 function deleteRoom(id) {
   if (!confirm(`Excluir canal #${id}?`)) return;
-  const base = rooms[id] || { id };
-  const tombstone = Object.assign({}, base, { archived: true, deleted: true });
-  gun.get(NAMESPACE).get('admin').get('rooms').get(id).put(tombstone);
+  gun.get(NAMESPACE).get('admin').get('rooms').get(id).get('archived').put(true);
+  gun.get(NAMESPACE).get('admin').get('rooms').get(id).get('deleted').put(true);
   gun.get(NAMESPACE).get('admin').get('ctrl').get('deleteChannel').put(id);
   delete rooms[id];
   addActivity('🗑️', `Canal <b>#${id}</b> excluído + mensagens limpas`);
+  renderRooms();
+}
+
+function resetAllRooms() {
+  if (!confirm('Reset ALL channels to defaults? This will remove custom channels.')) return;
+  Object.keys(rooms).forEach(k => {
+    gun.get(NAMESPACE).get('admin').get('rooms').get(k).put(null);
+  });
+  Object.keys(rooms).forEach(k => delete rooms[k]);
+  firstLoad = true;
+  DEFAULT_ROOMS.forEach(r => {
+    const room = Object.assign({}, r, { archived: false, deleted: false, createdAt: Date.now() });
+    gun.get(NAMESPACE).get('admin').get('rooms').get(r.id).put(room);
+    rooms[r.id] = room;
+  });
+  addActivity('🔄', '<b>All channels reset</b> to defaults');
   renderRooms();
 }
 
@@ -661,6 +698,55 @@ function clearActivity() {
 
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+const devices = {};
+gun.get(NAMESPACE).get('admin').get('private_access').map().on((data, deviceId) => {
+  if (!data || !deviceId || deviceId === '_') return;
+  if (data.allowed === false || data === null) delete devices[deviceId];
+  else if (data.name) devices[deviceId] = data;
+  renderDevices();
+});
+
+function renderDevices() {
+  const list = document.getElementById('device-list');
+  const all = Object.entries(devices);
+  document.getElementById('badge-devices').textContent = all.length;
+  if (all.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">📱</div>No authorized devices</div>';
+    return;
+  }
+  list.innerHTML = all.map(([id, d]) => `
+    <div class="user-item">
+      <div class="online-dot"></div>
+      <div class="user-avatar" style="background:linear-gradient(135deg,#FFD700,#FF8C00)">${(d.name||'?')[0].toUpperCase()}</div>
+      <div class="user-info">
+        <div class="user-name">${esc(d.name)}</div>
+        <div class="user-room" style="font-family:monospace;font-size:10px">${esc(id.substring(0,16))}...</div>
+      </div>
+      <button class="btn-icon danger" title="Remove" onclick="removeDevice('${esc(id)}')">🗑️</button>
+    </div>`).join('');
+}
+
+function addDevice() {
+  const id = document.getElementById('new-device-id').value.trim();
+  const name = document.getElementById('new-device-name').value.trim();
+  if (!id || !name) return alert('Fill in Device ID and Name');
+  const entry = { name, allowed: true, addedAt: Date.now() };
+  gun.get(NAMESPACE).get('admin').get('private_access').get(id).put(entry);
+  devices[id] = entry;
+  document.getElementById('new-device-id').value = '';
+  document.getElementById('new-device-name').value = '';
+  addActivity('🔒', `Device <b>${esc(name)}</b> authorized`);
+  renderDevices();
+}
+
+function removeDevice(id) {
+  if (!confirm('Remove device access?')) return;
+  gun.get(NAMESPACE).get('admin').get('private_access').get(id).get('allowed').put(false);
+  delete devices[id];
+  addActivity('🔓', `Device <b>${esc(id.substring(0,12))}</b> removed`);
+  renderDevices();
 }
 </script>
 </body>

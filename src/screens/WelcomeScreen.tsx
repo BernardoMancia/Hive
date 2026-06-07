@@ -58,7 +58,7 @@ export default function WelcomeScreen({ navigation }: Props) {
         if (isMounted.current) navigation.replace('Home');
         return;
       }
-    } catch (_) {}
+    } catch (e) { console.warn('[Hive:welcome] Auto-login failed:', e); }
     if (isMounted.current) {
       setLoading(false);
       Animated.parallel([
@@ -78,7 +78,7 @@ export default function WelcomeScreen({ navigation }: Props) {
       const userId = await getUserId();
       await initPresence(userId, trimmed);
       if (isMounted.current) navigation.replace('Home');
-    } catch (_) {
+    } catch (e) {
       if (isMounted.current) { Alert.alert('Error', 'Please try again.'); setJoining(false); }
     }
   };
@@ -151,7 +151,7 @@ export default function WelcomeScreen({ navigation }: Props) {
 
         <View style={s.pills}>
           {[
-            { icon: '🔒', label: 'E2E Encrypted' },
+            { icon: '🔒', label: 'Encrypted' },
             { icon: '👻', label: 'No Sign-Up' },
             { icon: '💨', label: '1h TTL' },
           ].map(p => (
