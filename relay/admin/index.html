@@ -126,11 +126,14 @@
   .room-name { font-size:13px; font-weight:600; }
   .room-desc { font-size:11px; color:var(--muted); margin-top:2px; }
   .room-actions { display:flex; gap:5px; }
+  .room-order-btns { display:flex; flex-direction:column; gap:2px; margin-right:4px; }
+  .room-order-badge { font-size:10px; color:var(--muted); min-width:22px; text-align:center; font-weight:600; }
   .btn-icon {
     width:30px; height:30px; border-radius:8px; border:1px solid var(--border);
     background:transparent; color:var(--muted); cursor:pointer;
     display:flex; align-items:center; justify-content:center; font-size:14px; transition:all .2s;
   }
+  .btn-icon.sm { width:22px; height:18px; font-size:10px; border-radius:5px; }
   .btn-icon:hover { background:rgba(255,255,255,.08); color:var(--text); }
   .btn-icon.danger:hover { background:rgba(255,71,87,.15); border-color:var(--red); color:var(--red); }
   .btn-icon.success:hover { background:rgba(0,255,136,.15); border-color:var(--green); color:var(--green); }
@@ -561,19 +564,19 @@ function renderUsers() {
 
 // ── Canais ──────────────────────────────────────────────────────
 const DEFAULT_ROOMS = [
-  {id:'general', name:'General', icon:'🌐', desc:'Open conversation'},
-  {id:'tech', name:'Tech & Code', icon:'💻', desc:'Programming'},
-  {id:'gaming', name:'Gaming', icon:'🎮', desc:'Games & eSports'},
-  {id:'music', name:'Music', icon:'🎵', desc:'Music discussion'},
-  {id:'cinema', name:'Movies & TV', icon:'🎬', desc:'Films and series'},
-  {id:'crypto', name:'Crypto & Finance', icon:'📈', desc:'Trading'},
-  {id:'art', name:'Art & Design', icon:'🎨', desc:'Creative works'},
-  {id:'fitness', name:'Fitness & Health', icon:'🏋️', desc:'Workouts'},
-  {id:'books', name:'Books & Knowledge', icon:'📚', desc:'Reading'},
-  {id:'travel', name:'Travel', icon:'🌍', desc:'Destinations'},
-  {id:'memes', name:'Memes & Humor', icon:'🤣', desc:'Funny content'},
-  {id:'adult', name:'Free Zone (+18)', icon:'🔞', desc:'Adult content'},
-  {id:'private', name:'Private Lounge', icon:'🔒', desc:'Invite-only — device verified'},
+  {id:'general', name:'General', icon:'🌐', desc:'Open conversation', order:0},
+  {id:'tech', name:'Tech & Code', icon:'💻', desc:'Programming', order:1},
+  {id:'gaming', name:'Gaming', icon:'🎮', desc:'Games & eSports', order:2},
+  {id:'music', name:'Music', icon:'🎵', desc:'Music discussion', order:3},
+  {id:'cinema', name:'Movies & TV', icon:'🎬', desc:'Films and series', order:4},
+  {id:'crypto', name:'Crypto & Finance', icon:'📈', desc:'Trading', order:5},
+  {id:'art', name:'Art & Design', icon:'🎨', desc:'Creative works', order:6},
+  {id:'fitness', name:'Fitness & Health', icon:'🏋️', desc:'Workouts', order:7},
+  {id:'books', name:'Books & Knowledge', icon:'📚', desc:'Reading', order:8},
+  {id:'travel', name:'Travel', icon:'🌍', desc:'Destinations', order:9},
+  {id:'memes', name:'Memes & Humor', icon:'🤣', desc:'Funny content', order:10},
+  {id:'adult', name:'Free Zone (+18)', icon:'🔞', desc:'Adult content', order:11},
+  {id:'private', name:'Private Lounge', icon:'🔒', desc:'Invite-only — device verified', order:12},
 ];
 
 gun.get(NAMESPACE).get('admin').get('rooms').map().on((data, key) => {
@@ -596,10 +599,14 @@ setTimeout(() => {
   }
 }, 2000);
 
+function getSortedRooms() {
+  return Object.values(rooms).sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+}
+
 function renderRooms() {
   firstLoad = false;
   const list = document.getElementById('room-list');
-  const all = Object.values(rooms);
+  const all = getSortedRooms();
   const active = all.filter(r => !r.archived).length;
   document.getElementById('stat-rooms').textContent = active;
   document.getElementById('badge-rooms').textContent = all.length;
@@ -607,14 +614,19 @@ function renderRooms() {
     list.innerHTML = '<div class="empty"><div class="empty-icon">📋</div>Nenhum canal</div>';
     return;
   }
-  list.innerHTML = all.map(r => `
+  list.innerHTML = all.map((r, idx) => `
     <div class="room-item ${r.archived ? 'archived' : ''}">
+      <div class="room-order-btns">
+        <button class="btn-icon sm" title="Subir" onclick="moveRoom('${r.id}',-1)" ${idx === 0 ? 'disabled style="opacity:.2;cursor:default"' : ''}>▲</button>
+        <button class="btn-icon sm" title="Descer" onclick="moveRoom('${r.id}',1)" ${idx === all.length - 1 ? 'disabled style="opacity:.2;cursor:default"' : ''}>▼</button>
+      </div>
       <div class="room-icon">${esc(r.icon || '💬')}</div>
       <div class="room-info">
         <div class="room-name">${esc(r.name)} <small style="color:var(--muted);font-size:10px">#${esc(r.id)}</small></div>
         <div class="room-desc">${esc(r.desc || '')}</div>
       </div>
       <div class="room-actions">
+        <span class="room-order-badge">${typeof r.order === 'number' ? r.order : '—'}</span>
         <button class="btn-icon ${r.archived ? 'success' : 'danger'}" title="${r.archived ? 'Restaurar' : 'Arquivar'}"
           onclick="toggleRoom('${r.id}',${!r.archived})">${r.archived ? '♻️' : '🗄️'}</button>
         <button class="btn-icon danger" title="Excluir" onclick="deleteRoom('${r.id}')">🗑️</button>
@@ -627,13 +639,38 @@ function createRoom() {
   const name = document.getElementById('new-room-name').value.trim();
   const icon = document.getElementById('new-room-icon').value.trim() || '💬';
   if (!id || !name) return alert('Preencha ID e Nome');
-  const room = { id, name, icon, desc:'', archived:false, createdAt:Date.now() };
+  const maxOrder = Object.values(rooms).reduce((m, r) => Math.max(m, r.order ?? 0), 0);
+  const room = { id, name, icon, desc:'', archived:false, createdAt:Date.now(), order: maxOrder + 1 };
   gun.get(NAMESPACE).get('admin').get('rooms').get(id).put(room);
   rooms[id] = room;
   document.getElementById('new-room-id').value = '';
   document.getElementById('new-room-name').value = '';
   document.getElementById('new-room-icon').value = '';
   addActivity('🆕', `Canal <b>#${name}</b> criado`);
+  renderRooms();
+}
+
+function moveRoom(id, direction) {
+  const sorted = getSortedRooms();
+  const idx = sorted.findIndex(r => r.id === id);
+  if (idx < 0) return;
+  const targetIdx = idx + direction;
+  if (targetIdx < 0 || targetIdx >= sorted.length) return;
+
+  const current = sorted[idx];
+  const target = sorted[targetIdx];
+
+  // Swap order values
+  const currentOrder = current.order ?? idx;
+  const targetOrder = target.order ?? targetIdx;
+
+  gun.get(NAMESPACE).get('admin').get('rooms').get(current.id).get('order').put(targetOrder);
+  gun.get(NAMESPACE).get('admin').get('rooms').get(target.id).get('order').put(currentOrder);
+
+  rooms[current.id].order = targetOrder;
+  rooms[target.id].order = currentOrder;
+
+  addActivity('↕️', `Canal <b>#${current.name}</b> movido ${direction < 0 ? '⬆️' : '⬇️'}`);
   renderRooms();
 }
 

@@ -213,6 +213,7 @@ export interface AdminRoom {
   desc: string;
   archived: boolean;
   createdAt: number;
+  order?: number;
 }
 
 export function subscribeToAdminRooms(
@@ -223,7 +224,7 @@ export function subscribeToAdminRooms(
 
   const flush = () => {
     if (!active) return;
-    onUpdate(Object.values(cache).filter(r => !r.archived && !(r as any).deleted));
+    onUpdate(Object.values(cache).filter(r => !r.archived && !(r as any).deleted).sort((a, b) => (a.order ?? 999) - (b.order ?? 999)));
   };
 
   try {

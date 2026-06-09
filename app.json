@@ -29,7 +29,8 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.INTERNET",
-        "android.permission.ACCESS_NETWORK_STATE"
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -49,7 +50,10 @@
       "relayUrl": "wss://fogoeluar.com.br/gun",
       "relayBaseUrl": "https://fogoeluar.com.br",
       "mediaUploadUrl": "https://fogoeluar.com.br/upload",
-      "uploadToken": "ee8ccb261dae7c452ecb1080b31b45fb8a7ccaa0a2d3f46f405a74dbe2fd395d"
+      "uploadToken": "ee8ccb261dae7c452ecb1080b31b45fb8a7ccaa0a2d3f46f405a74dbe2fd395d",
+      "eas": {
+        "projectId": "19035b50-3b50-496e-82ab-a9461debdfb4"
+      }
     }
   }
 }
