@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "Hive",
+    "slug": "hive-chat",
+    "version": "3.2.3",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A0F"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cryptolabs.hive"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0A0F"
+      },
+      "softwareKeyboardLayoutMode": "adjustResize",
+      "package": "com.cryptolabs.hive",
+      "versionCode": 22,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Hive needs access to your photos to share media.",
+          "cameraPermission": "Hive needs access to your camera to take photos."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "19035b50-3b50-496e-82ab-a9461debdfb4"
+      }
+    }
+  }
+}
